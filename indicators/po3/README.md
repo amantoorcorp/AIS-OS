@@ -21,25 +21,27 @@ Clean-room rebuild of the "Po3 v2.4.0" indicator, reverse-engineered from one BT
 | `✓ +4.88R` | Realized R = (exit − entry) / (entry − stop). Checked: (71868.11 − 59744.60) / (59744.60 − 57258.81) = 4.88 |
 | `Target -23%` on a short | Targets are far, several times the range height, so they're liquidity pools, not range projections |
 | `BREAKOUT` + orange box | Close beyond boundary by > `Breakout close × ATR`, or sweep deeper than `Max sweep depth` |
-| Faded old cycles, vivid latest | Last finished cycle stays bright; it fades once the next trade or breakout prints |
+| Faded old cycles, vivid latest | Last finished trade stays bright until the next trade opens. Breakouts keep their orange box |
+| One green zone per trade | Box from the sweep extreme to the target, plus dotted `1R` level |
+| Red `?` | Marks a live range waiting on its sweep |
 | `Cycles 23 = 13 + 9 + 1` | Cycles = trades taken = Target + Stop + Timeout |
 | `Avg R 1.3R` | Mean realized R over all cycles |
 | `Form` | Last 10 outcomes: ■ target, □ stop, ▣ timeout |
-| `Failed / Breakout` | Failed = sweep never reclaimed in time. Breakout = decisive close through the boundary |
+| `Failed / Breakout` | Failed = sweep reclaimed, but later than `Bars allowed to reclaim` (no trade). Breakout = decisive close or wick through the boundary. Matches the screenshot's 0 / 4: failures are rare |
 | `Resets (e/n/y/f)` | Ranges dropped without a trade. Our reading: **e** expired (no sweep before `Range expiry`), **n** neutral (both sides swept on one bar), **y** yielded to HTF bias, **f** filtered (R:R below `Min R:R`) |
-| `HTF Bias Off` | Optional higher-timeframe EMA filter (non-repainting `request.security`) |
+| `HTF Bias Off` | Optional higher-timeframe EMA filter (non-repainting `request.security`). Auto-promotes to W or 240 if the chosen TF isn't above the chart TF |
 | `TF 1D ⚠ (opt: 15M)` | Warns when chart TF ≠ `Optimal timeframe` |
 
 ## Cycle state machine
 
 ```
 SCAN ──compression──▶ ACCUMULATION ──wick beyond boundary──▶ MANIPULATION
-  ▲                        │ expired / double sweep (reset)        │ close back inside → DISTRIBUTION (trade)
-  │                        ▼                                       │ no reclaim in time → Failed
+  ▲                        │ expired / double sweep (reset)        │ close back inside in time → DISTRIBUTION
+  │                        ▼                                       │ reclaim too late → Failed
   └──────── target / stop / timeout / breakout / reset ◀───────────┘ deep close outside → BREAKOUT
 ```
 
-Same-bar stop and target counts as a stop (conservative). Stop fills at the open on a gap.
+Same-bar stop and target counts as a stop (conservative). Stop fills at the open on a gap; target fills at the target. A new range can't overlap the last cycle's bars.
 
 ## Alerts
 
@@ -50,6 +52,10 @@ Boundary sweep, Long (D▲), Short (D▼), Target hit, Stop hit, Timeout, Breako
 - **15m**: defaults are fine. Try `HTF bias = EMA` with `HTF timeframe = 240`.
 - **1D**: lower `Min range bars` to 15 and raise `Max range width` to 5 if few ranges show.
 - Too many tiny trades: raise `Min R:R`. Too few: lower `Max compression percentile`.
+
+## Calibration check
+
+The screenshot was taken on BTCUSD 1D (Binance) with the 15m warning showing, so likely default inputs. Target to match: 23 cycles, 13 / 9 / 1, Failed / Breakout 0 / 4, Resets 1 / 0 / 0 / 0, Avg R ≈ 1.3. If yours is far off, tune `Max compression percentile` (20–25), `Min R:R` (1.5–2) and `Liquidity pivot length` (10–20).
 
 ## Known differences from the original
 
