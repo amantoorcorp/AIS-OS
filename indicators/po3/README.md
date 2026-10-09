@@ -43,6 +43,31 @@ SCAN ──compression──▶ ACCUMULATION ──wick beyond boundary──▶
 
 Same-bar stop and target counts as a stop (conservative). Stop fills at the open on a gap; target fills at the target. A new range can't overlap the last cycle's bars.
 
+## Gold, ES, NQ
+
+`Preset = Auto` detects the symbol and loads tuned inputs. Works on futures (GC/MGC, ES/MES, NQ/MNQ, incl. `1!` continuous) and CFDs (XAUUSD, US500/SPX500, NAS100/US100). Run it on **15m**.
+
+| Input | Gold | ES | NQ |
+|---|---|---|---|
+| Min range bars | 20 | 16 | 16 |
+| Max range width (×ATR) | 4.0 | 3.5 | 4.0 |
+| Range expiry (bars) | 96 | 64 | 64 |
+| Min / max sweep depth (×ATR) | 0.05 / 1.5 | 0.03 / 1.2 | 0.05 / 1.5 |
+| Bars allowed to reclaim | 3 | 2 | 2 |
+| Breakout close (×ATR) | 0.75 | 0.6 | 0.75 |
+| Liquidity pivot length | 10 | 8 | 8 |
+| Trade timeout (bars) | 40 | 26 (one RTH day) | 26 |
+| Trade window (NY time) | 02:00–12:00 | 09:30–16:00 | 09:30–16:00 |
+
+These are reasoned starting points, not backtested optima. Pick `Custom` to use your own numbers.
+
+Session features:
+- **Trade window**: setups outside it reset the cycle (y). Open trades flatten at the window end (Timeout).
+- **Accumulation source = Session range**: the Asia box (20:00–00:00 NY) becomes the range, swept later at London/NY. Classic ICT Po3 for indices and gold. For ES/NQ set the trade window to `0200-1600` if you want London sweeps too.
+- **Min stop buffer (ticks)**: stop is never tighter than this many ticks past the sweep.
+- **Risk row**: points and $ per contract from `syminfo.pointvalue` (ES $50/pt, NQ $20/pt, GC $100/pt, micros 1/10th).
+- **HTF bias**: EMA on 240 is a good filter for ES/NQ.
+
 ## Alerts
 
 Boundary sweep, Long (D▲), Short (D▼), Target hit, Stop hit, Timeout, Breakout, Failed reclaim. Plus one dynamic `alert()` per signal with entry, stop, target and R.

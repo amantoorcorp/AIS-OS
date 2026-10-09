@@ -7,31 +7,41 @@ indicator("Po3 · Accumulation / Manipulation / Distribution", shorttitle = "Po3
 // ─────────────────────────────────────────────────────────────────────────────
 // Inputs
 // ─────────────────────────────────────────────────────────────────────────────
+grpP = "Instrument"
+presetIn = input.string("Auto", "Preset", options = ["Auto", "Gold", "ES", "NQ", "Custom"], group = grpP, tooltip = "Auto detects GC/MGC/XAUUSD, ES/MES/SPX/US500, NQ/MNQ/NDX/NAS100. Gold/ES/NQ presets override the range, sweep and trade inputs below (tuned for 15m). Custom uses your inputs.")
+rngSrc   = input.string("Compression", "Accumulation source", options = ["Compression", "Session range"], group = grpP, tooltip = "Compression: any tight range (original behaviour). Session range: the Asia session box is the accumulation, swept at London/NY (classic ICT Po3).")
+accSess  = input.session("2000-0000", "Accumulation session", group = grpP)
+winMode  = input.string("Preset", "Trade window", options = ["Preset", "Custom", "Off"], group = grpP, tooltip = "Preset: Gold 02:00-12:00, ES/NQ 09:30-16:00 (New York time). Setups outside the window reset the cycle (y).")
+winIn    = input.session("0930-1600", "Custom trade window", group = grpP)
+flatEnd  = input.bool(true, "Flatten at window end", group = grpP, tooltip = "Open trade exits at the open of the first bar after the window closes (counted as Timeout).")
+tz       = input.string("America/New_York", "Session timezone", group = grpP)
+minTicks = input.int(4, "Min stop buffer (ticks)", minval = 0, group = grpP)
+
 grpA = "Accumulation (range)"
-minBars  = input.int(20, "Min range bars", minval = 5, group = grpA, tooltip = "Bars the compression window must span before a range is locked.")
+minBarsIn  = input.int(20, "Min range bars", minval = 5, group = grpA, tooltip = "Bars the compression window must span before a range is locked.")
 atrLen   = input.int(50, "ATR length", minval = 5, group = grpA)
-maxWidth = input.float(4.5, "Max range width (×ATR)", minval = 0.5, step = 0.25, group = grpA)
+maxWidthIn = input.float(4.5, "Max range width (×ATR)", minval = 0.5, step = 0.25, group = grpA)
 pctLen   = input.int(200, "Compression lookback", minval = 20, maxval = 1000, group = grpA, tooltip = "Percentile rank of the normalized range width over this many bars. Lower = tighter.")
-maxPct   = input.int(25, "Max compression percentile", minval = 1, maxval = 100, group = grpA)
-maxAge   = input.int(150, "Range expiry (bars)", minval = 10, group = grpA, tooltip = "Range resets (e) if no sweep happens within this many bars.")
+maxPctIn = input.int(25, "Max compression percentile", minval = 1, maxval = 100, group = grpA)
+maxAgeIn = input.int(150, "Range expiry (bars)", minval = 10, group = grpA, tooltip = "Range resets (e) if no sweep happens within this many bars.")
 
 grpM = "Manipulation (sweep)"
-minPen   = input.float(0.05, "Min sweep depth (×ATR)", minval = 0.0, step = 0.05, group = grpM)
-maxPen   = input.float(1.5, "Max sweep depth (×ATR)", minval = 0.1, step = 0.1, group = grpM, tooltip = "Deeper than this is a breakout, not a sweep.")
-reclaimN = input.int(3, "Bars allowed to reclaim", minval = 0, group = grpM, tooltip = "Close back inside within this many bars = trade. A later reclaim counts as Failed.")
-brkAtr   = input.float(0.75, "Breakout close (×ATR beyond boundary)", minval = 0.1, step = 0.05, group = grpM)
+minPenIn = input.float(0.05, "Min sweep depth (×ATR)", minval = 0.0, step = 0.05, group = grpM)
+maxPenIn = input.float(1.5, "Max sweep depth (×ATR)", minval = 0.1, step = 0.1, group = grpM, tooltip = "Deeper than this is a breakout, not a sweep.")
+reclaimNIn = input.int(3, "Bars allowed to reclaim", minval = 0, group = grpM, tooltip = "Close back inside within this many bars = trade. A later reclaim counts as Failed.")
+brkAtrIn = input.float(0.75, "Breakout close (×ATR beyond boundary)", minval = 0.1, step = 0.05, group = grpM)
 
 grpD = "Distribution (trade)"
 tgtMode  = input.string("Liquidity", "Target", options = ["Liquidity", "Range projection", "Fixed R"], group = grpD, tooltip = "Liquidity: nearest unswept swing high/low beyond the range (falls back to Range projection).")
 projMult = input.float(1.0, "Projection (×range height)", minval = 0.1, step = 0.1, group = grpD)
 fixedR   = input.float(2.0, "Fixed R", minval = 0.5, step = 0.25, group = grpD)
-pivLen   = input.int(10, "Liquidity pivot length", minval = 2, group = grpD)
-stopBuf  = input.float(0.1, "Stop buffer beyond sweep (×ATR)", minval = 0.0, step = 0.05, group = grpD)
-minRR    = input.float(1.5, "Min R:R", minval = 0.1, step = 0.1, group = grpD, tooltip = "Setups below this reset the cycle (f).")
-maxTrade = input.int(60, "Trade timeout (bars)", minval = 1, group = grpD)
+pivLenIn = input.int(10, "Liquidity pivot length", minval = 2, group = grpD)
+stopBufIn = input.float(0.1, "Stop buffer beyond sweep (×ATR)", minval = 0.0, step = 0.05, group = grpD)
+minRRIn = input.float(1.5, "Min R:R", minval = 0.1, step = 0.1, group = grpD, tooltip = "Setups below this reset the cycle (f).")
+maxTradeIn = input.int(60, "Trade timeout (bars)", minval = 1, group = grpD)
 
 grpF = "Filters"
-htfMode  = input.string("Off", "HTF bias", options = ["Off", "EMA"], group = grpF, tooltip = "EMA: only trade in the direction of the higher-timeframe close vs its EMA. Blocked setups reset the cycle (y).")
+htfMode  = input.string("Off", "HTF bias", options = ["Off", "EMA"], group = grpF, tooltip = "EMA: only trade in the direction of the higher-timeframe close vs its EMA. Blocked setups reset the cycle (y). Try EMA on 240 for ES/NQ.")
 htfTf    = input.timeframe("240", "HTF timeframe", group = grpF, tooltip = "Auto-promoted to the next higher of 240 / D / W / M / 12M when not above the chart timeframe.")
 htfLen   = input.int(50, "HTF EMA length", minval = 2, group = grpF)
 optTf    = input.timeframe("15", "Optimal timeframe", group = grpF, tooltip = "Dashboard warns when the chart timeframe differs.")
@@ -50,6 +60,38 @@ colAcc   = input.color(color.gray, "Accumulation", group = grpV)
 colHead  = input.color(#1e53e5, "Dashboard header", group = grpV)
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Instrument presets (15m-tuned starting points, not backtested optima)
+// ─────────────────────────────────────────────────────────────────────────────
+f_has(string a, string b) =>
+    str.contains(a, b)
+isGold = syminfo.root == "GC" or syminfo.root == "MGC" or f_has(syminfo.ticker, "XAU") or f_has(syminfo.ticker, "GOLD")
+isES   = syminfo.root == "ES" or syminfo.root == "MES" or f_has(syminfo.ticker, "SPX") or f_has(syminfo.ticker, "US500") or f_has(syminfo.ticker, "SP500")
+isNQ   = syminfo.root == "NQ" or syminfo.root == "MNQ" or f_has(syminfo.ticker, "NDX") or f_has(syminfo.ticker, "NAS100") or f_has(syminfo.ticker, "US100")
+preset = presetIn != "Auto" ? presetIn : isGold ? "Gold" : isES ? "ES" : isNQ ? "NQ" : "Custom"
+
+f_pi(int custom, int gold, int es, int nq) =>
+    preset == "Gold" ? gold : preset == "ES" ? es : preset == "NQ" ? nq : custom
+f_pf(float custom, float gold, float es, float nq) =>
+    preset == "Gold" ? gold : preset == "ES" ? es : preset == "NQ" ? nq : custom
+
+//                          custom      gold   es     nq
+minBars  = f_pi(minBarsIn,  20,    16,    16)
+maxWidth = f_pf(maxWidthIn, 4.0,   3.5,   4.0)
+maxPct   = f_pi(maxPctIn,   25,    25,    25)
+maxAge   = f_pi(maxAgeIn,   96,    64,    64)
+minPen   = f_pf(minPenIn,   0.05,  0.03,  0.05)
+maxPen   = f_pf(maxPenIn,   1.5,   1.2,   1.5)
+reclaimN = f_pi(reclaimNIn, 3,     2,     2)
+brkAtr   = f_pf(brkAtrIn,   0.75,  0.6,   0.75)
+pivLen   = f_pi(pivLenIn,   10,    8,     8)
+stopBuf  = f_pf(stopBufIn,  0.10,  0.08,  0.10)
+minRR    = f_pf(minRRIn,    1.5,   1.5,   1.5)
+maxTrade = f_pi(maxTradeIn, 40,    26,    26)
+
+winSess = winMode == "Off" ? "" : winMode == "Custom" ? winIn : preset == "Gold" ? "0200-1200" : preset == "ES" or preset == "NQ" ? "0930-1600" : ""
+winOn   = winSess != ""
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Series
 // ─────────────────────────────────────────────────────────────────────────────
 atr = ta.atr(atrLen)
@@ -60,6 +102,22 @@ pct = ta.percentrank(nw, pctLen)
 ph  = ta.pivothigh(high, pivLen, pivLen)
 pl  = ta.pivotlow(low, pivLen, pivLen)
 go  = (barstate.isconfirmed or not confirm) and not na(atr) and not na(pct)
+
+inWin  = not winOn or not na(time(timeframe.period, winOn ? winSess : "0000-0000", tz))
+winEnd = winOn and inWin[1] and not inWin
+sessMode = rngSrc == "Session range"
+inAcc  = sessMode and not na(time(timeframe.period, accSess, tz))
+var float aHi    = na
+var float aLo    = na
+var int   aStart = na
+if inAcc and not inAcc[1]
+    aHi    := high
+    aLo    := low
+    aStart := bar_index
+else if inAcc
+    aHi := math.max(aHi, high)
+    aLo := math.min(aLo, low)
+accDone = sessMode and inAcc[1] and not inAcc and not na(aHi)
 
 cs     = timeframe.in_seconds()
 htfUse = timeframe.in_seconds(htfTf) > cs ? htfTf : cs < 14400 ? "240" : cs < 86400 ? "D" : cs < 604800 ? "W" : cs < 2592000 ? "M" : "12M"
@@ -229,7 +287,7 @@ int  rsCode  = 0    // 1 e · 2 n · 3 y · 4 f
 
 if go
     if state == 0
-        if bar_index >= minBars and bar_index >= coolUntil and nw <= maxWidth and pct <= maxPct
+        if not sessMode and bar_index >= minBars and bar_index >= coolUntil and nw <= maxWidth and pct <= maxPct
             state  := 1
             rHi    := hh
             rLo    := ll
@@ -241,7 +299,9 @@ if go
         rBox.set_right(bar_index)
         up = high > rHi + minPen * atr
         dn = low < rLo - minPen * atr
-        if up and dn
+        if accDone
+            rsCode := 1
+        else if up and dn
             rsCode := 2
         else if up or dn
             sDir    := dn ? 1 : -1
@@ -292,7 +352,10 @@ if go
         hitT = tDir == 1 ? high >= tP : low <= tP
         int   res = na
         float px  = na
-        if hitS   // stop first when both print on one bar (conservative)
+        if flatEnd and winEnd
+            res := 0
+            px  := open
+        else if hitS   // stop first when both print on one bar (conservative)
             res := -1
             px  := tDir == 1 ? math.min(open, sP) : math.max(open, sP)
         else if hitT   // filled at target even on a gap through it (conservative)
@@ -333,7 +396,8 @@ if go
     if doSetup
         h  = rHi - rLo
         e  = close
-        s  = sDir == 1 ? sExt - stopBuf * atr : sExt + stopBuf * atr
+        buf = math.max(stopBuf * atr, minTicks * syminfo.mintick)
+        s  = sDir == 1 ? sExt - buf : sExt + buf
         rk = math.abs(e - s)
         float t = na
         if tgtMode == "Fixed R"
@@ -348,7 +412,7 @@ if go
         rr = rk > 0 ? (t - e) * sDir / rk : 0.0
         if rk <= 0 or rr < minRR
             rsCode := 4
-        else if bias != 0 and bias != sDir
+        else if (bias != 0 and bias != sDir) or not inWin
             rsCode := 3
         else
             f_fade(pL, pLb, pB, showHist)
@@ -418,6 +482,14 @@ if go
         coolUntil := bar_index + minBars
         state := 0
 
+    if accDone and state == 0 and aHi > aLo
+        state  := 1
+        rHi    := aHi
+        rLo    := aLo
+        rStart := aStart
+        rBox   := box.new(rStart, rHi, bar_index, rLo, border_color = color.new(colAcc, 40), border_style = line.style_dashed, bgcolor = color.new(colAcc, 94))
+        cB.push(rBox)
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Dashboard
 // ─────────────────────────────────────────────────────────────────────────────
@@ -431,7 +503,7 @@ tSz = switch dashSize
     "Normal" => size.normal
     => size.small
 
-var table tb = table.new(tPos, 2, 20, frame_color = color.new(color.gray, 60), frame_width = 1, border_color = color.new(color.gray, 80), border_width = 1)
+var table tb = table.new(tPos, 2, 23, frame_color = color.new(color.gray, 60), frame_width = 1, border_color = color.new(color.gray, 80), border_width = 1)
 
 f_sec(table t, int r, string txt, color bg, color fg, string sz) =>
     table.cell(t, 0, r, txt, text_color = fg, bgcolor = bg, text_size = sz)
@@ -452,7 +524,7 @@ if showDash and barstate.islast
     phCol = state == 0 ? dim : state == 1 ? colAcc : state == 2 ? colBrk : tDir == 1 ? colBull : colBear
     phTxt = phase + (state == 1 or state == 2 ? " (" + str.tostring(age) + "b)" : "")
 
-    cmpTxt = na(pct) ? "—" : str.tostring(math.round(pct)) + "p  " + f_meter((100 - pct) / 100, 6)
+    cmpTxt = sessMode ? "Session box (" + accSess + ")" : na(pct) ? "—" : str.tostring(math.round(pct)) + "p  " + f_meter((100 - pct) / 100, 6)
     cmpCol = not na(pct) and pct <= maxPct ? colBull : dim
     rngTxt = state >= 1 ? f_px(rLo) + " – " + f_px(rHi) : "—"
     biasTxt = htfMode == "Off" ? "Off" : bias == 1 ? "Bull ▲ (" + f_tf(htfUse) + ")" : bias == -1 ? "Bear ▼ (" + f_tf(htfUse) + ")" : "Flat"
@@ -463,6 +535,10 @@ if showDash and barstate.islast
     openR = state == 3 and risk > 0 ? (close - eP) * tDir / risk : 0.0
     cyc = state == 0 ? "Scanning for compression" : state == 1 ? "Awaiting boundary sweep" : state == 2 ? "Sweep " + (sDir == 1 ? "↓ low" : "↑ high") + (bar_index - sBar > reclaimN ? " · reclaim window closed (late = Failed)" : " · awaiting reclaim (" + str.tostring(bar_index - sBar) + "/" + str.tostring(reclaimN) + ")") : (tDir == 1 ? "Long" : "Short") + " active · " + f_r(openR) + " open"
     cycCol = state == 3 ? (openR >= 0 ? colBull : colBear) : fg
+    pv     = syminfo.pointvalue
+    riskTxt = state == 3 ? f_px(risk) + " pts · $" + str.tostring(risk * pv, "#,##0") + "/ct" : "—"
+    preTxt  = preset + (presetIn == "Auto" ? " (auto)" : "")
+    winTxt  = winOn ? winSess + (inWin ? " · open" : " · closed") : "Off"
 
     tRate = nCyc > 0 ? nTgt * 100.0 / nCyc : 0.0
     sRate = nCyc > 0 ? nStop * 100.0 / nCyc : 0.0
@@ -475,28 +551,32 @@ if showDash and barstate.islast
     table.cell(tb, 0, 0, "◆ Po3 · " + phase, text_color = color.white, bgcolor = colHead, text_size = tSz)
     table.cell(tb, 1, 0, "", bgcolor = colHead, text_size = tSz)
     f_sec(tb, 1, "— Market —", secBg, dim, tSz)
-    f_row(tb, 2, "Phase", phTxt, phCol, bg, fg, tSz)
-    f_row(tb, 3, "Compression", cmpTxt, cmpCol, bg, fg, tSz)
-    f_row(tb, 4, "Range", rngTxt, fg, bg, fg, tSz)
-    f_row(tb, 5, "HTF Bias", biasTxt, biasCol, bg, fg, tSz)
-    f_row(tb, 6, "TF", tfTxt, tfOk ? fg : colBrk, bg, fg, tSz)
-    f_sec(tb, 7, "— Cycle —", secBg, dim, tSz)
-    f_sec(tb, 8, cyc, bg, cycCol, tSz)
-    f_sec(tb, 9, "— Stats · All-Time —", secBg, dim, tSz)
-    f_row(tb, 10, "Cycles", str.tostring(nCyc), fg, bg, fg, tSz)
-    f_row(tb, 11, "Target", str.tostring(nTgt) + " (" + str.tostring(tRate, "0.0") + "%)", colBull, bg, fg, tSz)
-    f_row(tb, 12, "Stop", str.tostring(nStop) + " (" + str.tostring(sRate, "0.0") + "%)", colBear, bg, fg, tSz)
-    f_row(tb, 13, "Timeout", str.tostring(nTo) + " (" + str.tostring(oRate, "0.0") + "%)", fg, bg, fg, tSz)
-    f_row(tb, 14, "Target rate", str.tostring(tRate, "0.0") + "%  " + f_meter(tRate / 100, 10), tRate >= 50 ? colBull : colBear, bg, fg, tSz)
-    f_row(tb, 15, "Avg R", str.tostring(avgR, "0.0") + "R", avgR >= 0 ? colBull : colBear, bg, fg, tSz)
-    f_row(tb, 16, "Form", frm == "" ? "—" : frm, fg, bg, fg, tSz)
-    f_row(tb, 17, "Failed / Breakout · All-Time", str.tostring(nFail) + " / " + str.tostring(nBrk), fg, bg, fg, tSz)
-    f_row(tb, 18, "Resets (e/n/y/f) · All-Time", str.tostring(rsE) + " / " + str.tostring(rsN) + " / " + str.tostring(rsY) + " / " + str.tostring(rsF), fg, bg, fg, tSz)
-    f_sec(tb, 19, "Po3 · v2.4.0-re", bg, dim, size.tiny)
-    table.cell_set_tooltip(tb, 1, 17, "Failed: sweep reclaimed too late, or never before range expiry (no trade). Breakout: decisive close or wick through the boundary.")
-    table.cell_set_tooltip(tb, 1, 18, "e expired (no sweep in time) · n neutral (both sides swept on one bar) · y yielded to HTF bias · f filtered (R:R below min)")
+    f_row(tb, 2, "Preset", preTxt, fg, bg, fg, tSz)
+    f_row(tb, 3, "Phase", phTxt, phCol, bg, fg, tSz)
+    f_row(tb, 4, "Compression", cmpTxt, cmpCol, bg, fg, tSz)
+    f_row(tb, 5, "Range", rngTxt, fg, bg, fg, tSz)
+    f_row(tb, 6, "HTF Bias", biasTxt, biasCol, bg, fg, tSz)
+    f_row(tb, 7, "Window", winTxt, not winOn ? fg : inWin ? colBull : dim, bg, fg, tSz)
+    f_row(tb, 8, "TF", tfTxt, tfOk ? fg : colBrk, bg, fg, tSz)
+    f_sec(tb, 9, "— Cycle —", secBg, dim, tSz)
+    f_sec(tb, 10, cyc, bg, cycCol, tSz)
+    f_row(tb, 11, "Risk", riskTxt, fg, bg, fg, tSz)
+    f_sec(tb, 12, "— Stats · All-Time —", secBg, dim, tSz)
+    f_row(tb, 13, "Cycles", str.tostring(nCyc), fg, bg, fg, tSz)
+    f_row(tb, 14, "Target", str.tostring(nTgt) + " (" + str.tostring(tRate, "0.0") + "%)", colBull, bg, fg, tSz)
+    f_row(tb, 15, "Stop", str.tostring(nStop) + " (" + str.tostring(sRate, "0.0") + "%)", colBear, bg, fg, tSz)
+    f_row(tb, 16, "Timeout", str.tostring(nTo) + " (" + str.tostring(oRate, "0.0") + "%)", fg, bg, fg, tSz)
+    f_row(tb, 17, "Target rate", str.tostring(tRate, "0.0") + "%  " + f_meter(tRate / 100, 10), tRate >= 50 ? colBull : colBear, bg, fg, tSz)
+    f_row(tb, 18, "Avg R", str.tostring(avgR, "0.0") + "R", avgR >= 0 ? colBull : colBear, bg, fg, tSz)
+    f_row(tb, 19, "Form", frm == "" ? "—" : frm, fg, bg, fg, tSz)
+    f_row(tb, 20, "Failed / Breakout · All-Time", str.tostring(nFail) + " / " + str.tostring(nBrk), fg, bg, fg, tSz)
+    f_row(tb, 21, "Resets (e/n/y/f) · All-Time", str.tostring(rsE) + " / " + str.tostring(rsN) + " / " + str.tostring(rsY) + " / " + str.tostring(rsF), fg, bg, fg, tSz)
+    f_sec(tb, 22, "Po3 · v2.5.0-re", bg, dim, size.tiny)
+    table.cell_set_tooltip(tb, 1, 11, "Distance entry to stop, in points and in dollars per contract (syminfo.pointvalue).")
+    table.cell_set_tooltip(tb, 1, 20, "Failed: sweep reclaimed too late, or never before range expiry (no trade). Breakout: decisive close or wick through the boundary.")
+    table.cell_set_tooltip(tb, 1, 21, "e expired (no sweep in time, or replaced by a new session box) · n neutral (both sides swept on one bar) · y yielded to HTF bias or trade window · f filtered (R:R below min)")
 
-    for r in array.from(0, 1, 7, 8, 9, 19)
+    for r in array.from(0, 1, 9, 10, 12, 22)
         table.merge_cells(tb, 0, r, 1, r)
 
 // Pending-cycle marker (the red "?" right of the live range)
@@ -522,4 +602,4 @@ alertcondition(evBrk, "Po3 · Breakout", "Po3: range breakout (no reclaim) on {{
 alertcondition(evFail, "Po3 · Failed reclaim", "Po3: sweep failed to reclaim on {{ticker}}")
 
 if evLong or evShort
-    alert("Po3 " + (evLong ? "LONG" : "SHORT") + " " + syminfo.ticker + " · entry " + f_px(eP) + " · stop " + f_px(sP) + " · target " + f_px(tP) + " · " + f_r((tP - eP) * tDir / risk), alert.freq_once_per_bar_close)
+    alert("Po3 " + (evLong ? "LONG" : "SHORT") + " " + syminfo.ticker + " · entry " + f_px(eP) + " · stop " + f_px(sP) + " · target " + f_px(tP) + " · " + f_r((tP - eP) * tDir / risk) + " · risk $" + str.tostring(risk * syminfo.pointvalue, "#,##0") + "/ct", alert.freq_once_per_bar_close)
