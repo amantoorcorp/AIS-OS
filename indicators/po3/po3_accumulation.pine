@@ -11,7 +11,7 @@ grpA = "Accumulation (range)"
 minBars  = input.int(20, "Min range bars", minval = 5, group = grpA, tooltip = "Bars the compression window must span before a range is locked.")
 atrLen   = input.int(50, "ATR length", minval = 5, group = grpA)
 maxWidth = input.float(4.5, "Max range width (×ATR)", minval = 0.5, step = 0.25, group = grpA)
-pctLen   = input.int(200, "Compression lookback", minval = 20, group = grpA, tooltip = "Percentile rank of the normalized range width over this many bars. Lower = tighter.")
+pctLen   = input.int(200, "Compression lookback", minval = 20, maxval = 1000, group = grpA, tooltip = "Percentile rank of the normalized range width over this many bars. Lower = tighter.")
 maxPct   = input.int(40, "Max compression percentile", minval = 1, maxval = 100, group = grpA)
 maxAge   = input.int(150, "Range expiry (bars)", minval = 10, group = grpA, tooltip = "Range resets (e) if no sweep happens within this many bars.")
 
@@ -35,7 +35,7 @@ htfMode  = input.string("Off", "HTF bias", options = ["Off", "EMA"], group = grp
 htfTf    = input.timeframe("240", "HTF timeframe", group = grpF)
 htfLen   = input.int(50, "HTF EMA length", minval = 2, group = grpF)
 optTf    = input.timeframe("15", "Optimal timeframe", group = grpF, tooltip = "Dashboard warns when the chart timeframe differs.")
-confirm  = input.bool(true, "Confirm on bar close (no repaint)", group = grpF)
+confirm  = input.bool(true, "Confirm on bar close (no repaint)", group = grpF, tooltip = "Off = intrabar signals. Drawings and alerts may repaint.")
 
 grpV = "Visuals"
 showHist = input.bool(true, "Keep past cycles (faded)", group = grpV)
@@ -62,7 +62,8 @@ pl  = ta.pivotlow(low, pivLen, pivLen)
 go  = (barstate.isconfirmed or not confirm) and not na(atr) and not na(pct)
 
 [htfC, htfE] = request.security(syminfo.tickerid, htfTf, [close[1], ta.ema(close, htfLen)[1]], lookahead = barmerge.lookahead_on)
-bias = htfMode == "Off" or na(htfE) ? 0 : htfC > htfE ? 1 : htfC < htfE ? -1 : 0
+htfOk = timeframe.in_seconds(htfTf) > timeframe.in_seconds(timeframe.period)
+bias = htfMode == "Off" or na(htfE) or not htfOk ? 0 : htfC > htfE ? 1 : htfC < htfE ? -1 : 0
 
 // Unswept swing highs/lows = external liquidity pools
 var array<float> liqHi = array.new<float>()
@@ -124,7 +125,7 @@ f_tf(string tf) =>
         r := (tf == "M" ? "1" : str.replace(tf, "M", "")) + "Mo"
     else
         s = timeframe.in_seconds(tf)
-        r := s % 604800 == 0 ? str.tostring(math.round(s / 604800)) + "W" : s % 86400 == 0 ? str.tostring(math.round(s / 86400)) + "D" : s % 3600 == 0 ? str.tostring(math.round(s / 3600)) + "H" : s % 60 == 0 ? str.tostring(math.round(s / 60)) + "M" : str.tostring(s) + "S"
+        r := na(s) ? tf : s % 604800 == 0 ? str.tostring(math.round(s / 604800)) + "W" : s % 86400 == 0 ? str.tostring(math.round(s / 86400)) + "D" : s % 3600 == 0 ? str.tostring(math.round(s / 3600)) + "H" : s % 60 == 0 ? str.tostring(math.round(s / 60)) + "M" : str.tostring(s) + "S"
     r
 
 // Fade (or delete) a set of drawings, then empty the arrays.
@@ -164,6 +165,7 @@ f_move(array<line> sl, array<label> slb, array<box> sb, array<line> dl, array<la
 // 0 scan · 1 accumulation · 2 manipulation (sweep pending reclaim) · 3 distribution (trade)
 // ─────────────────────────────────────────────────────────────────────────────
 var int   state  = 0
+var int   coolUntil = 0   // no re-lock of the same range right after a reset
 var float rHi    = na
 var float rLo    = na
 var int   rStart = na
@@ -227,7 +229,7 @@ int  rsCode  = 0    // 1 e · 2 n · 3 y · 4 f
 
 if go
     if state == 0
-        if bar_index >= minBars and nw <= maxWidth and pct <= maxPct
+        if bar_index >= minBars and bar_index >= coolUntil and nw <= maxWidth and pct <= maxPct
             state  := 1
             rHi    := hh
             rLo    := ll
@@ -388,6 +390,7 @@ if go
         nFail  += 1
         evFail := true
         f_fade(cL, cLb, cB, showHist)
+        coolUntil := bar_index + math.max(3, int(minBars / 2))
         state := 0
 
     if rsCode != 0
@@ -400,6 +403,7 @@ if go
         else
             rsF += 1
         f_fade(cL, cLb, cB, showHist)
+        coolUntil := bar_index + math.max(3, int(minBars / 2))
         state := 0
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -416,7 +420,6 @@ tSz = switch dashSize
     => size.small
 
 var table tb = table.new(tPos, 2, 20, frame_color = color.new(color.gray, 60), frame_width = 1, border_color = color.new(color.gray, 80), border_width = 1)
-varip bool merged = false
 
 f_sec(table t, int r, string txt, color bg, color fg, string sz) =>
     table.cell(t, 0, r, txt, text_color = fg, bgcolor = bg, text_size = sz)
@@ -479,10 +482,8 @@ if showDash and barstate.islast
     f_row(tb, 18, "Resets (e/n/y/f) · All-Time", str.tostring(rsE) + " / " + str.tostring(rsN) + " / " + str.tostring(rsY) + " / " + str.tostring(rsF), fg, bg, fg, tSz)
     f_sec(tb, 19, "Po3 · v2.4.0-re", bg, dim, size.tiny)
 
-    if not merged
-        for r in array.from(0, 1, 7, 8, 9, 19)
-            table.merge_cells(tb, 0, r, 1, r)
-        merged := true
+    for r in array.from(0, 1, 7, 8, 9, 19)
+        table.merge_cells(tb, 0, r, 1, r)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Outputs & alerts
