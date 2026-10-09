@@ -63,9 +63,10 @@ These are reasoned starting points, not backtested optima. Pick `Custom` to use 
 
 Session features:
 - **Trade window**: setups outside it reset the cycle (y). Open trades flatten at the window end (Timeout).
-- **Accumulation source = Session range**: the Asia box (20:00–00:00 NY) becomes the range, swept later at London/NY. Classic ICT Po3 for indices and gold. For ES/NQ set the trade window to `0200-1600` if you want London sweeps too.
+- **Accumulation source = Session range**: a session box becomes the range. Gold uses Asia (20:00–00:00 NY), swept at London/NY. ES/NQ use the overnight range (18:00–09:30), swept in RTH. Classic ICT Po3. Needs an intraday chart of 1H or lower. The box lives until the next one forms.
 - **Min stop buffer (ticks)**: stop is never tighter than this many ticks past the sweep.
-- **Risk row**: points and $ per contract from `syminfo.pointvalue` (ES $50/pt, NQ $20/pt, GC $100/pt, micros 1/10th).
+- **Daily or higher charts**: the trade window and session box switch off automatically (shown as "n/a on this TF").
+- **Risk row**: points, plus $ per contract on futures from `syminfo.pointvalue` (ES $50/pt, NQ $20/pt, GC $100/pt, micros 1/10th).
 - **HTF bias**: EMA on 240 is a good filter for ES/NQ.
 
 ## Alerts
