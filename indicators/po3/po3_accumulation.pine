@@ -12,13 +12,13 @@ minBars  = input.int(20, "Min range bars", minval = 5, group = grpA, tooltip = "
 atrLen   = input.int(50, "ATR length", minval = 5, group = grpA)
 maxWidth = input.float(4.5, "Max range width (×ATR)", minval = 0.5, step = 0.25, group = grpA)
 pctLen   = input.int(200, "Compression lookback", minval = 20, maxval = 1000, group = grpA, tooltip = "Percentile rank of the normalized range width over this many bars. Lower = tighter.")
-maxPct   = input.int(40, "Max compression percentile", minval = 1, maxval = 100, group = grpA)
+maxPct   = input.int(25, "Max compression percentile", minval = 1, maxval = 100, group = grpA)
 maxAge   = input.int(150, "Range expiry (bars)", minval = 10, group = grpA, tooltip = "Range resets (e) if no sweep happens within this many bars.")
 
 grpM = "Manipulation (sweep)"
 minPen   = input.float(0.05, "Min sweep depth (×ATR)", minval = 0.0, step = 0.05, group = grpM)
 maxPen   = input.float(1.5, "Max sweep depth (×ATR)", minval = 0.1, step = 0.1, group = grpM, tooltip = "Deeper than this is a breakout, not a sweep.")
-reclaimN = input.int(3, "Bars allowed to reclaim", minval = 0, group = grpM, tooltip = "Price must close back inside the range within this many bars of the sweep, or the cycle counts as Failed.")
+reclaimN = input.int(3, "Bars allowed to reclaim", minval = 0, group = grpM, tooltip = "Close back inside within this many bars = trade. A later reclaim counts as Failed.")
 brkAtr   = input.float(0.75, "Breakout close (×ATR beyond boundary)", minval = 0.1, step = 0.05, group = grpM)
 
 grpD = "Distribution (trade)"
@@ -27,12 +27,12 @@ projMult = input.float(1.0, "Projection (×range height)", minval = 0.1, step = 
 fixedR   = input.float(2.0, "Fixed R", minval = 0.5, step = 0.25, group = grpD)
 pivLen   = input.int(10, "Liquidity pivot length", minval = 2, group = grpD)
 stopBuf  = input.float(0.1, "Stop buffer beyond sweep (×ATR)", minval = 0.0, step = 0.05, group = grpD)
-minRR    = input.float(1.0, "Min R:R", minval = 0.1, step = 0.1, group = grpD, tooltip = "Setups below this reset the cycle (f).")
+minRR    = input.float(1.5, "Min R:R", minval = 0.1, step = 0.1, group = grpD, tooltip = "Setups below this reset the cycle (f).")
 maxTrade = input.int(60, "Trade timeout (bars)", minval = 1, group = grpD)
 
 grpF = "Filters"
 htfMode  = input.string("Off", "HTF bias", options = ["Off", "EMA"], group = grpF, tooltip = "EMA: only trade in the direction of the higher-timeframe close vs its EMA. Blocked setups reset the cycle (y).")
-htfTf    = input.timeframe("240", "HTF timeframe", group = grpF)
+htfTf    = input.timeframe("240", "HTF timeframe", group = grpF, tooltip = "Auto-promoted to W (daily+ charts) or 240 when not above the chart timeframe.")
 htfLen   = input.int(50, "HTF EMA length", minval = 2, group = grpF)
 optTf    = input.timeframe("15", "Optimal timeframe", group = grpF, tooltip = "Dashboard warns when the chart timeframe differs.")
 confirm  = input.bool(true, "Confirm on bar close (no repaint)", group = grpF, tooltip = "Off = intrabar signals. Drawings and alerts may repaint.")
@@ -46,7 +46,7 @@ dashSize = input.string("Small", "Dashboard size", options = ["Tiny", "Small", "
 colBull  = input.color(#26a69a, "Bull", group = grpV)
 colBear  = input.color(#ef5350, "Bear", group = grpV)
 colBrk   = input.color(#ff9800, "Breakout / manipulation", group = grpV)
-colAcc   = input.color(#d4a017, "Accumulation", group = grpV)
+colAcc   = input.color(color.gray, "Accumulation", group = grpV)
 colHead  = input.color(#1e53e5, "Dashboard header", group = grpV)
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -61,9 +61,9 @@ ph  = ta.pivothigh(high, pivLen, pivLen)
 pl  = ta.pivotlow(low, pivLen, pivLen)
 go  = (barstate.isconfirmed or not confirm) and not na(atr) and not na(pct)
 
-[htfC, htfE] = request.security(syminfo.tickerid, htfTf, [close[1], ta.ema(close, htfLen)[1]], lookahead = barmerge.lookahead_on)
-htfOk = timeframe.in_seconds(htfTf) > timeframe.in_seconds(timeframe.period)
-bias = htfMode == "Off" or na(htfE) or not htfOk ? 0 : htfC > htfE ? 1 : htfC < htfE ? -1 : 0
+[htfC, htfE] = request.security(syminfo.tickerid, htfUse, [close[1], ta.ema(close, htfLen)[1]], lookahead = barmerge.lookahead_on)
+htfUse = timeframe.in_seconds(htfTf) > timeframe.in_seconds() ? htfTf : timeframe.in_seconds() >= 86400 ? "W" : "240"
+bias = htfMode == "Off" or na(htfE) ? 0 : htfC > htfE ? 1 : htfC < htfE ? -1 : 0
 
 // Unswept swing highs/lows = external liquidity pools
 var array<float> liqHi = array.new<float>()
@@ -165,7 +165,7 @@ f_move(array<line> sl, array<label> slb, array<box> sb, array<line> dl, array<la
 // 0 scan · 1 accumulation · 2 manipulation (sweep pending reclaim) · 3 distribution (trade)
 // ─────────────────────────────────────────────────────────────────────────────
 var int   state  = 0
-var int   coolUntil = 0   // no re-lock of the same range right after a reset
+var int   coolUntil = 0   // next range window must not overlap the last cycle
 var float rHi    = na
 var float rLo    = na
 var int   rStart = na
@@ -181,7 +181,6 @@ var float sP     = na
 var float tP     = na
 var float risk   = na
 var box   pBox   = na
-var box   kBox   = na
 var line  eLn    = na
 var line  sLn    = na
 var line  tLn    = na
@@ -234,7 +233,7 @@ if go
             rHi    := hh
             rLo    := ll
             rStart := bar_index - minBars + 1
-            rBox   := box.new(rStart, rHi, bar_index, rLo, border_color = color.new(colAcc, 40), border_style = line.style_dashed, bgcolor = color.new(colAcc, 92))
+            rBox   := box.new(rStart, rHi, bar_index, rLo, border_color = color.new(colAcc, 40), border_style = line.style_dashed, bgcolor = color.new(colAcc, 94))
             cB.push(rBox)
 
     else if state == 1
@@ -254,10 +253,8 @@ if go
             beyond = dn ? rLo - close : close - rHi
             if pen > maxPen * atr or beyond > brkAtr * atr
                 doBrk := true
-            else if beyond < 0
+            else if close > rLo and close < rHi
                 doSetup := true
-            else if reclaimN == 0
-                doFail := true
             else
                 state := 2
         else if bar_index - rStart > maxAge
@@ -265,22 +262,28 @@ if go
 
     else if state == 2
         rBox.set_right(bar_index)
-        sExt   := sDir == 1 ? math.min(sExt, low) : math.max(sExt, high)
-        mLb.set_xy(bar_index, sExt)
+        if (sDir == 1 and low < sExt) or (sDir == -1 and high > sExt)
+            sExt := sDir == 1 ? low : high
+            mLb.set_xy(bar_index, sExt)
         pen    = sDir == 1 ? rLo - sExt : sExt - rHi
         beyond = sDir == 1 ? rLo - close : close - rHi
         if pen > maxPen * atr or beyond > brkAtr * atr
             doBrk := true
-        else if beyond < 0
-            doSetup := true
-        else if bar_index - sBar >= reclaimN
-            doFail := true
+        else if close > rLo and close < rHi
+            // reclaim in time = trade, too late = failed manipulation
+            if bar_index - sBar <= reclaimN
+                doSetup := true
+            else
+                doFail := true
+        else if bar_index - rStart > maxAge
+            rsCode := 1
 
     else if state == 3 and bar_index > tBar
-        for b in array.from(pBox, kBox)
-            b.set_right(bar_index)
-        for l in array.from(eLn, sLn, tLn, oLn)
+        pBox.set_right(bar_index)
+        for l in array.from(eLn, sLn, tLn)
             l.set_x2(bar_index)
+        if show1R
+            oLn.set_x2(bar_index)
         for lb in array.from(eLb, sLb, tLb)
             lb.set_x(bar_index)
 
@@ -291,7 +294,7 @@ if go
         if hitS   // stop first when both print on one bar (conservative)
             res := -1
             px  := tDir == 1 ? math.min(open, sP) : math.max(open, sP)
-        else if hitT
+        else if hitT   // filled at target even on a gap through it (conservative)
             res := 1
             px  := tP
         else if bar_index - tBar >= maxTrade
@@ -322,6 +325,7 @@ if go
             cLb.push(label.new(bar_index, up ? high : low, mark + f_r(r), style = up ? label.style_label_down : label.style_label_up, color = okC, textcolor = color.white, size = size.small))
             f_fade(pL, pLb, pB, showHist)
             f_move(cL, cLb, cB, pL, pLb, pB)
+            coolUntil := bar_index + minBars
             state := 0
 
     // ── resolve transitions raised above ──
@@ -355,22 +359,25 @@ if go
             tP    := t
             risk  := rk
             col   = tDir == 1 ? colBull : colBear
-            pBox := box.new(bar_index, math.max(e, t), bar_index, math.min(e, t), border_color = color.new(col, 100), bgcolor = color.new(col, 85))
-            kBox := box.new(bar_index, math.max(e, s), bar_index, math.min(e, s), border_color = color.new(colBear, 100), bgcolor = color.new(tDir == 1 ? colBear : colBull, 90))
+            r1    = e + tDir * rk
+            // one zone from the sweep extreme to the target, like the original
+            pBox := box.new(bar_index, math.max(sExt, t), bar_index, math.min(sExt, t), border_color = color.new(col, 100), bgcolor = color.new(col, 88))
             eLn  := line.new(bar_index, e, bar_index, e, color = chart.fg_color, width = 2)
             sLn  := line.new(bar_index, s, bar_index, s, color = colBear, width = 2)
             tLn  := line.new(bar_index, t, bar_index, t, color = color.new(#1b5e20, 0), width = 2)
-            oLn  := line.new(bar_index, e + tDir * rk, bar_index, e + tDir * rk, color = color.new(chart.fg_color, show1R ? 60 : 100), style = line.style_dotted)
             eLb  := label.new(bar_index, e, "Entry " + f_px(e), style = label.style_label_left, color = color.new(#263238, 0), textcolor = color.white, size = size.small)
             sLb  := label.new(bar_index, s, "Stop " + f_px(s) + " (" + f_chg(s, e) + ")", style = label.style_label_left, color = colBear, textcolor = color.white, size = size.small)
             tLb  := label.new(bar_index, t, "Target " + f_px(t) + " (" + f_chg(t, e) + ")", style = label.style_label_left, color = color.new(#1b5e20, 0), textcolor = color.white, size = size.small)
-            dLb   = label.new(bar_index, tDir == 1 ? low : high, tDir == 1 ? "D▲" : "D▼", style = tDir == 1 ? label.style_label_up : label.style_label_down, color = col, textcolor = color.white, size = size.small)
+            dLb   = label.new(bar_index, tDir == 1 ? low - 0.6 * atr : high + 0.6 * atr, tDir == 1 ? "D▲" : "D▼", style = tDir == 1 ? label.style_label_up : label.style_label_down, color = col, textcolor = color.white, size = size.small)
             cB.push(pBox)
-            cB.push(kBox)
-            for l in array.from(eLn, sLn, tLn, oLn)
+            for l in array.from(eLn, sLn, tLn)
                 cL.push(l)
             for lb in array.from(eLb, sLb, tLb, dLb)
                 cLb.push(lb)
+            if show1R
+                oLn := line.new(bar_index, r1, bar_index, r1, color = color.new(chart.fg_color, 60), style = line.style_dotted)
+                cL.push(oLn)
+                cLb.push(label.new(bar_index, r1, "1R", style = label.style_label_right, color = color.new(color.gray, 100), textcolor = color.new(chart.fg_color, 40), size = size.tiny))
             evLong  := tDir == 1
             evShort := tDir == -1
 
@@ -378,19 +385,20 @@ if go
         nBrk  += 1
         evBrk := true
         bnd    = sDir == 1 ? rLo : rHi
-        bb     = box.new(sBar, math.max(bnd, close), bar_index, math.min(bnd, close), border_color = color.new(colBrk, 60), bgcolor = color.new(colBrk, 75))
-        bl     = label.new(bar_index, bnd, "BREAKOUT", style = sDir == 1 ? label.style_label_up : label.style_label_down, color = color.new(color.gray, 20), textcolor = color.white, size = size.small)
-        cB.push(bb)
-        cLb.push(bl)
-        f_fade(pL, pLb, pB, showHist)
-        f_move(cL, cLb, cB, pL, pLb, pB)
+        ext    = sDir == 1 ? math.min(sExt, close) : math.max(sExt, close)
+        mLb.delete()
+        // fade the dead range only; the last finished trade stays vivid
+        f_fade(cL, cLb, cB, showHist)
+        box.new(sBar, math.max(bnd, ext), bar_index, math.min(bnd, ext), border_color = color.new(colBrk, 60), bgcolor = color.new(colBrk, 75))
+        label.new(bar_index, bnd, "BREAKOUT", style = sDir == 1 ? label.style_label_down : label.style_label_up, color = color.new(color.gray, 20), textcolor = color.white, size = size.small)
+        coolUntil := bar_index + minBars
         state := 0
 
     if doFail
         nFail  += 1
         evFail := true
         f_fade(cL, cLb, cB, showHist)
-        coolUntil := bar_index + math.max(3, int(minBars / 2))
+        coolUntil := bar_index + minBars
         state := 0
 
     if rsCode != 0
@@ -403,7 +411,7 @@ if go
         else
             rsF += 1
         f_fade(cL, cLb, cB, showHist)
-        coolUntil := bar_index + math.max(3, int(minBars / 2))
+        coolUntil := bar_index + minBars
         state := 0
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -443,13 +451,13 @@ if showDash and barstate.islast
     cmpTxt = na(pct) ? "—" : str.tostring(math.round(pct)) + "p  " + f_meter((100 - pct) / 100, 6)
     cmpCol = not na(pct) and pct <= maxPct ? colBull : dim
     rngTxt = state >= 1 ? f_px(rLo) + " – " + f_px(rHi) : "—"
-    biasTxt = htfMode == "Off" ? "Off" : bias == 1 ? "Bull ▲ (" + f_tf(htfTf) + ")" : bias == -1 ? "Bear ▼ (" + f_tf(htfTf) + ")" : "Flat"
+    biasTxt = htfMode == "Off" ? "Off" : bias == 1 ? "Bull ▲ (" + f_tf(htfUse) + ")" : bias == -1 ? "Bear ▼ (" + f_tf(htfUse) + ")" : "Flat"
     biasCol = bias == 1 ? colBull : bias == -1 ? colBear : fg
     tfOk  = timeframe.in_seconds(timeframe.period) == timeframe.in_seconds(optTf)
     tfTxt = f_tf(timeframe.period) + (tfOk ? "" : " ⚠ (opt: " + f_tf(optTf) + ")")
 
     openR = state == 3 and risk > 0 ? (close - eP) * tDir / risk : 0.0
-    cyc = state == 0 ? "Scanning for compression" : state == 1 ? "Awaiting boundary sweep" : state == 2 ? "Sweep " + (sDir == 1 ? "↓ low" : "↑ high") + " · awaiting reclaim (" + str.tostring(bar_index - sBar) + "/" + str.tostring(reclaimN) + ")" : (tDir == 1 ? "Long" : "Short") + " active · " + f_r(openR) + " open"
+    cyc = state == 0 ? "Scanning for compression" : state == 1 ? "Awaiting boundary sweep" : state == 2 ? "Sweep " + (sDir == 1 ? "↓ low" : "↑ high") + " · awaiting reclaim (" + str.tostring(math.min(bar_index - sBar, reclaimN)) + "/" + str.tostring(reclaimN) + ")" : (tDir == 1 ? "Long" : "Short") + " active · " + f_r(openR) + " open"
     cycCol = state == 3 ? (openR >= 0 ? colBull : colBear) : fg
 
     tRate = nCyc > 0 ? nTgt * 100.0 / nCyc : 0.0
@@ -472,18 +480,27 @@ if showDash and barstate.islast
     f_sec(tb, 8, cyc, bg, cycCol, tSz)
     f_sec(tb, 9, "— Stats · All-Time —", secBg, dim, tSz)
     f_row(tb, 10, "Cycles", str.tostring(nCyc), fg, bg, fg, tSz)
-    f_row(tb, 11, "Target", str.tostring(nTgt) + " (" + str.tostring(tRate, "#.#") + "%)", colBull, bg, fg, tSz)
-    f_row(tb, 12, "Stop", str.tostring(nStop) + " (" + str.tostring(sRate, "#.#") + "%)", colBear, bg, fg, tSz)
-    f_row(tb, 13, "Timeout", str.tostring(nTo) + " (" + str.tostring(oRate, "#.#") + "%)", fg, bg, fg, tSz)
-    f_row(tb, 14, "Target rate", str.tostring(tRate, "#.#") + "%  " + f_meter(tRate / 100, 10), tRate >= 50 ? colBull : colBear, bg, fg, tSz)
-    f_row(tb, 15, "Avg R", str.tostring(avgR, "#.##") + "R", avgR >= 0 ? colBull : colBear, bg, fg, tSz)
+    f_row(tb, 11, "Target", str.tostring(nTgt) + " (" + str.tostring(tRate, "0.0") + "%)", colBull, bg, fg, tSz)
+    f_row(tb, 12, "Stop", str.tostring(nStop) + " (" + str.tostring(sRate, "0.0") + "%)", colBear, bg, fg, tSz)
+    f_row(tb, 13, "Timeout", str.tostring(nTo) + " (" + str.tostring(oRate, "0.0") + "%)", fg, bg, fg, tSz)
+    f_row(tb, 14, "Target rate", str.tostring(tRate, "0.0") + "%  " + f_meter(tRate / 100, 10), tRate >= 50 ? colBull : colBear, bg, fg, tSz)
+    f_row(tb, 15, "Avg R", str.tostring(avgR, "0.0") + "R", avgR >= 0 ? colBull : colBear, bg, fg, tSz)
     f_row(tb, 16, "Form", frm == "" ? "—" : frm, fg, bg, fg, tSz)
     f_row(tb, 17, "Failed / Breakout · All-Time", str.tostring(nFail) + " / " + str.tostring(nBrk), fg, bg, fg, tSz)
     f_row(tb, 18, "Resets (e/n/y/f) · All-Time", str.tostring(rsE) + " / " + str.tostring(rsN) + " / " + str.tostring(rsY) + " / " + str.tostring(rsF), fg, bg, fg, tSz)
     f_sec(tb, 19, "Po3 · v2.4.0-re", bg, dim, size.tiny)
+    table.cell_set_tooltip(tb, 1, 17, "Failed: sweep reclaimed too late (no trade). Breakout: decisive close or wick through the boundary.")
+    table.cell_set_tooltip(tb, 1, 18, "e expired (no sweep in time) · n neutral (both sides swept on one bar) · y yielded to HTF bias · f filtered (R:R below min)")
 
     for r in array.from(0, 1, 7, 8, 9, 19)
         table.merge_cells(tb, 0, r, 1, r)
+
+// Pending-cycle marker (the red "?" right of the live range)
+var label qLb = label.new(bar_index, close, "", style = label.style_label_left, color = color.new(colBear, 100), textcolor = colBear, size = size.large)
+if barstate.islast
+    pend = state == 1 or state == 2
+    qLb.set_xy(bar_index + 3, pend ? (rHi + rLo) / 2 : close)
+    qLb.set_text(pend ? "?" : "")
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Outputs & alerts
