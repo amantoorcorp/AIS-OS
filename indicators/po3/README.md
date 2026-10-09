@@ -29,7 +29,7 @@ Clean-room rebuild of the "Po3 v2.4.0" indicator, reverse-engineered from one BT
 | `Form` | Last 10 outcomes: ■ target, □ stop, ▣ timeout |
 | `Failed / Breakout` | Failed = sweep reclaimed, but later than `Bars allowed to reclaim` (no trade). Breakout = decisive close or wick through the boundary. Matches the screenshot's 0 / 4: failures are rare |
 | `Resets (e/n/y/f)` | Ranges dropped without a trade. Our reading: **e** expired (no sweep before `Range expiry`), **n** neutral (both sides swept on one bar), **y** yielded to HTF bias, **f** filtered (R:R below `Min R:R`) |
-| `HTF Bias Off` | Optional higher-timeframe EMA filter (non-repainting `request.security`). Auto-promotes to W or 240 if the chosen TF isn't above the chart TF |
+| `HTF Bias Off` | Optional higher-timeframe EMA filter (non-repainting `request.security`). Auto-promotes to the next of 240 / D / W / M / 12M if the chosen TF isn't above the chart TF |
 | `TF 1D ⚠ (opt: 15M)` | Warns when chart TF ≠ `Optimal timeframe` |
 
 ## Cycle state machine
