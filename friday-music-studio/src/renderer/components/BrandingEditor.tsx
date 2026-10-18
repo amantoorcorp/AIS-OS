@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { BUNDLED_FONTS } from '../../shared/defaults';
 import type { Branding } from '../../shared/types';
 
 export function BrandingEditor({ value, onSave }: { value: Branding; onSave: (b: Branding) => void }) {
@@ -10,6 +11,31 @@ export function BrandingEditor({ value, onSave }: { value: Branding; onSave: (b:
       <label className="field">
         <span>Watermark / channel text</span>
         <input value={b.watermarkText} maxLength={80} onChange={(e) => setB({ ...b, watermarkText: e.target.value })} />
+      </label>
+      <label className="field">
+        <span>Logo / text position</span>
+        <select value={b.watermarkPosition} onChange={(e) => setB({ ...b, watermarkPosition: e.target.value as Branding['watermarkPosition'] })}>
+          <option value="top_left">Top left</option>
+          <option value="bottom_right">Bottom right</option>
+        </select>
+      </label>
+      <label className="field">
+        <span>Lyric case</span>
+        <select value={b.textCase} onChange={(e) => setB({ ...b, textCase: e.target.value as Branding['textCase'] })}>
+          <option value="as_written">As written</option>
+          <option value="upper">ALL CAPS</option>
+        </select>
+      </label>
+      <label className="field">
+        <span>Lyric size ({Math.round(b.textScale * 100)}%)</span>
+        <input type="range" min={0.8} max={1.6} step={0.05} value={b.textScale} onChange={(e) => setB({ ...b, textScale: Number(e.target.value) })} />
+      </label>
+      <label className="field">
+        <span>Background motion</span>
+        <select value={b.backgroundMotion} onChange={(e) => setB({ ...b, backgroundMotion: e.target.value as Branding['backgroundMotion'] })}>
+          <option value="none">Still</option>
+          <option value="drift">Slow drift (images)</option>
+        </select>
       </label>
       <label className="field">
         <span>Background dim ({Math.round(b.backgroundDim * 100)}%)</span>
@@ -27,8 +53,14 @@ export function BrandingEditor({ value, onSave }: { value: Branding; onSave: (b:
         <input type="color" value={b.backgroundColor} onChange={(e) => setB({ ...b, backgroundColor: e.target.value })} />
       </label>
       <label className="field">
-        <span>Font family (installed on this computer)</span>
-        <input value={b.fontFamily} maxLength={64} onChange={(e) => setB({ ...b, fontFamily: e.target.value.replace(/[^A-Za-z0-9 _-]/g, '') })} />
+        <span>Font (bundled, or any font installed on this computer)</span>
+        <input list="font-options" value={b.fontFamily} maxLength={64} onChange={(e) => setB({ ...b, fontFamily: e.target.value.replace(/[^A-Za-z0-9 _-]/g, '') })} />
+        <datalist id="font-options">
+          {BUNDLED_FONTS.map((f) => (
+            <option key={f.family} value={f.family} />
+          ))}
+          <option value="Arial" />
+        </datalist>
       </label>
       <button disabled={!dirty || !b.fontFamily.trim()} onClick={() => onSave(b)}>Save branding</button>
     </div>

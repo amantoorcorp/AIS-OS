@@ -5,7 +5,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { createReadStream, promises as fs } from 'node:fs';
 import path from 'node:path';
 import { validateCues } from '../shared/cues';
-import { isValidTimezone } from '../shared/defaults';
+import { BACKGROUND_PRESETS, isValidTimezone, type BackgroundPresetId } from '../shared/defaults';
 import type {
   Asset,
   AssetKind,
@@ -56,6 +56,8 @@ export class StudioService {
   constructor(
     readonly store: Store,
     readonly dataDir: string,
+    /** Read-only folder holding bundled fonts/ and backgrounds/. */
+    readonly bundledDir: string,
   ) {
     this.providers = [new MockProvider(() => this.ffmpegPath()), new SunoProvider()];
   }
@@ -164,6 +166,42 @@ export class StudioService {
     return asset;
   }
 
+  /** Adds one of the bundled sky backgrounds to the project and selects it. */
+  async importPreset(projectId: string, presetId: BackgroundPresetId): Promise<Asset> {
+    this.requireProject(projectId);
+    const preset = BACKGROUND_PRESETS.find((p) => p.id === presetId);
+    if (!preset) throw new Error('Unknown background preset');
+    const existing = this.store.listAssets(projectId).find((a) => a.originalName === `Preset: ${preset.label}` && a.kind === 'image');
+    if (existing) {
+      this.store.updateProject(projectId, { backgroundAssetId: existing.id });
+      return existing;
+    }
+    const src = path.join(this.bundledDir, 'backgrounds', preset.file);
+    const id = randomUUID();
+    const dir = path.join(this.projectDir(projectId), 'assets');
+    await fs.mkdir(dir, { recursive: true });
+    const storedPath = path.join(dir, `${id}.jpg`);
+    await fs.copyFile(src, storedPath);
+    const probe = await probeMedia(this.ffprobePath(), storedPath);
+    const st = await fs.stat(storedPath);
+    const asset = this.store.addAsset({
+      id,
+      projectId,
+      kind: 'image',
+      source: 'local_import',
+      providerId: null,
+      originalName: `Preset: ${preset.label}`,
+      storedPath,
+      mime: 'image/jpeg',
+      sizeBytes: st.size,
+      durationSec: null,
+      width: probe.width,
+      height: probe.height,
+    });
+    this.store.updateProject(projectId, { backgroundAssetId: id });
+    return asset;
+  }
+
   // ---------- cues ----------
 
   saveCues(projectId: string, cues: LyricCue[]) {
@@ -205,7 +243,9 @@ export class StudioService {
       durationSec,
       background,
       backgroundDim: project.backgroundAssetId ? project.branding.backgroundDim : 0,
+      backgroundMotion: project.branding.backgroundMotion,
       assContent: buildAss(cues, project.branding, durationSec * 1000),
+      fontsDir: path.join(this.bundledDir, 'fonts'),
     };
     return { job, spec };
   }

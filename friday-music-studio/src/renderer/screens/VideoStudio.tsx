@@ -4,6 +4,7 @@ import type { ScreenProps } from '../App';
 import { BrandingEditor } from '../components/BrandingEditor';
 import { Badge, ErrorBanner, fmtBytes, fmtDate, ProjectPicker, Section, SourceBadge, useAction } from '../components/common';
 import { activeCue, cuesFromLyrics, distributeEvenly, formatMs, layoutCue, parseTime, validateCues } from '../../shared/cues';
+import { BACKGROUND_PRESETS, skyLyricBranding } from '../../shared/defaults';
 import type { Branding, LyricCue, ProjectDetail, RenderProgressEvent } from '../../shared/types';
 
 const newId = () => crypto.randomUUID();
@@ -218,6 +219,37 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
             </div>
           </Section>
 
+          <Section title="Look">
+            <div className="row wrap">
+              <button
+                className="primary"
+                onClick={() =>
+                  run(async () => {
+                    if (!project.backgroundAssetId) await api.importPreset(project.id, 'sunset');
+                    await api.updateProject(project.id, { branding: skyLyricBranding(project.branding) });
+                    await load();
+                  })
+                }
+              >
+                Apply Sky Lyric style
+              </button>
+              <span className="muted small-text">Brush capitals, slow sky drift, logo bottom right.</span>
+            </div>
+            <div className="presets">
+              {BACKGROUND_PRESETS.map((p) => (
+                <button
+                  key={p.id}
+                  className="preset"
+                  title={p.label}
+                  onClick={() => run(async () => { await api.importPreset(project.id, p.id); await load(); })}
+                >
+                  <img src={`./backgrounds/${p.file}`} alt="" />
+                  <span>{p.label}</span>
+                </button>
+              ))}
+            </div>
+          </Section>
+
           <Section title="Branding">
             <BrandingEditor value={project.branding} onSave={saveBranding} />
           </Section>
@@ -394,13 +426,14 @@ function TimeInput({ value, onChange }: { value: number; onChange: (ms: number) 
 
 /** Same layout rules as the ASS export: 1920-wide coordinate space scaled with container units. */
 function LyricPreview({ branding, background, cue }: { branding: Branding; background: { kind: string; id: string } | null; cue: LyricCue | null }) {
-  const layout = cue ? layoutCue(cue.text) : null;
+  const layout = cue ? layoutCue(cue.text, { upper: branding.textCase === 'upper', scale: branding.textScale }) : null;
+  const drift = background?.kind === 'image' && branding.backgroundMotion === 'drift';
   return (
     <div className="preview" style={{ background: branding.backgroundColor }}>
-      {background?.kind === 'image' && <img src={assetUrl(background.id)} alt="" />}
+      {background?.kind === 'image' && <img className={drift ? 'drift' : ''} src={assetUrl(background.id)} alt="" />}
       {background?.kind === 'video' && <video src={assetUrl(background.id)} muted loop autoPlay playsInline />}
       {background && <div className="dim" style={{ opacity: branding.backgroundDim }} />}
-      {branding.watermarkText && <div className="watermark" style={{ fontFamily: `"${branding.fontFamily}", sans-serif` }}>{branding.watermarkText}</div>}
+      {branding.watermarkText && <div className={`watermark ${branding.watermarkPosition}`} style={{ fontFamily: `"${branding.fontFamily}", sans-serif` }}>{branding.watermarkText}</div>}
       {layout && (
         <div className={`lyric ${branding.lyricPosition}`} style={{ fontSize: `calc(${layout.fontPx} / 1920 * 100cqw)`, fontFamily: `"${branding.fontFamily}", sans-serif` }}>
           {layout.lines.map((l, i) => (

@@ -99,6 +99,17 @@ try {
   const lyric = await win.locator('.preview .lyric').innerText();
   step(`seek updates preview lyric: "${lyric.replace(/\n/g, ' / ')}"`);
 
+  await win.click('button:has-text("Apply Sky Lyric style")');
+  await win.waitForFunction(() => getComputedStyle(document.querySelector('.preview .lyric')).fontFamily.includes('Permanent Marker'));
+  await win.waitForFunction(() => document.fonts.check('40px "Permanent Marker"'));
+  const caps = await win.locator('.preview .lyric').innerText();
+  if (caps !== caps.toUpperCase()) throw new Error('sky style did not uppercase the preview');
+  step('Sky Lyric style applied: bundled font loaded, capitals, drifting sky');
+  await win.click('.preset:has-text("Dusk")');
+  await win.waitForFunction(() => document.querySelector('.preview img')?.complete);
+  await win.click('.preset:has-text("Sunset")');
+  step('background presets switch');
+
   await win.click('button:has-text("Save cues")');
   await win.waitForSelector('.badge:has-text("unsaved")', { state: 'detached' });
   await win.screenshot({ path: path.join(shots, '03-video-studio.png') });

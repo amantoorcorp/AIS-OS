@@ -29,9 +29,18 @@ export interface LyricCue {
 }
 
 export type LyricPosition = 'center' | 'lower';
+export type TextCase = 'as_written' | 'upper';
+export type WatermarkPosition = 'top_left' | 'bottom_right';
+export type BackgroundMotion = 'none' | 'drift';
 
 export interface Branding {
   watermarkText: string;
+  watermarkPosition: WatermarkPosition;
+  textCase: TextCase;
+  /** Lyric size multiplier, 0.8..1.6. */
+  textScale: number;
+  /** Slow pan across still-image backgrounds. */
+  backgroundMotion: BackgroundMotion;
   /** 0..0.8 darkening applied over the background so white lyrics stay readable. */
   backgroundDim: number;
   /** Used when no background asset is chosen. */

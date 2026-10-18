@@ -24,11 +24,19 @@ function sanitizeFontName(name: string): string {
   return cleaned.length > 0 ? cleaned : 'Arial';
 }
 
+/** Short fade in/out, never more than a quarter of the cue. */
+function fadeMs(cue: LyricCue): number {
+  return Math.max(0, Math.min(180, Math.floor((cue.endMs - cue.startMs) / 4)));
+}
+
 export function buildAss(cues: LyricCue[], branding: Branding, durationMs: number): string {
   const font = sanitizeFontName(branding.fontFamily);
   // Alignment 5 = middle centre, 2 = bottom centre.
   const alignment = branding.lyricPosition === 'center' ? 5 : 2;
   const marginV = branding.lyricPosition === 'center' ? 0 : 140;
+  // 7 = top left, 3 = bottom right.
+  const markAlignment = branding.watermarkPosition === 'bottom_right' ? 3 : 7;
+  const layoutOpts = { upper: branding.textCase === 'upper', scale: branding.textScale };
   const header = [
     '[Script Info]',
     'ScriptType: v4.00+',
@@ -40,9 +48,9 @@ export function buildAss(cues: LyricCue[], branding: Branding, durationMs: numbe
     '',
     '[V4+ Styles]',
     'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
-    // White text, translucent black outline blurred into a soft shadow.
-    `Style: Lyric,${font},84,&H00FFFFFF,&H00FFFFFF,&H90000000,&HA0000000,1,0,0,0,100,100,0,0,1,3,3,${alignment},120,120,${marginV},1`,
-    `Style: Mark,${font},34,&H40FFFFFF,&H40FFFFFF,&HC0000000,&HC0000000,1,0,0,0,100,100,1,0,1,1,1,7,60,60,50,1`,
+    // White text, translucent black outline blurred into a soft glow, plus a soft drop shadow down-right.
+    `Style: Lyric,${font},84,&H00FFFFFF,&H00FFFFFF,&H90000000,&H50000000,1,0,0,0,100,100,1,0,1,3,5,${alignment},120,120,${marginV},1`,
+    `Style: Mark,${font},44,&H20FFFFFF,&H20FFFFFF,&HA0000000,&HA0000000,1,0,0,0,100,100,1,0,1,1,2,${markAlignment},60,60,50,1`,
     '',
     '[Events]',
     'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
@@ -56,11 +64,11 @@ export function buildAss(cues: LyricCue[], branding: Branding, durationMs: numbe
   const sorted = [...cues].sort((a, b) => a.startMs - b.startMs);
   for (const cue of sorted) {
     if (!(cue.endMs > cue.startMs)) continue;
-    const { lines, fontPx } = layoutCue(cue.text);
+    const { lines, fontPx } = layoutCue(cue.text, layoutOpts);
     if (lines.length === 0) continue;
     const body = lines.map(sanitizeAssText).join('\\N');
     events.push(
-      `Dialogue: 1,${assTime(cue.startMs)},${assTime(Math.min(cue.endMs, durationMs))},Lyric,,0,0,0,,{\\fs${fontPx}\\blur4}${body}`,
+      `Dialogue: 1,${assTime(cue.startMs)},${assTime(Math.min(cue.endMs, durationMs))},Lyric,,0,0,0,,{\\fs${fontPx}\\blur3\\fad(${fadeMs(cue)},${fadeMs(cue)})}${body}`,
     );
   }
   return [...header, ...events, ''].join('\n');

@@ -10,6 +10,10 @@ const shortText = (max: number) => z.string().max(max);
 
 export const BrandingSchema = z.strictObject({
   watermarkText: shortText(80),
+  watermarkPosition: z.enum(['top_left', 'bottom_right']),
+  textCase: z.enum(['as_written', 'upper']),
+  textScale: z.number().min(0.8).max(1.6),
+  backgroundMotion: z.enum(['none', 'drift']),
   backgroundDim: z.number().min(0).max(0.8),
   backgroundColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   lyricPosition: z.enum(['center', 'lower']),
@@ -44,6 +48,7 @@ export const channels = {
   'projects:update': z.strictObject({ projectId: id, patch: ProjectPatchSchema }),
   'projects:archive': z.strictObject({ projectId: id }),
   'assets:import': z.strictObject({ projectId: id, kind: z.enum(['audio', 'image', 'video']) }),
+  'assets:importPreset': z.strictObject({ projectId: id, presetId: z.enum(['sunset', 'dusk', 'golden', 'night']) }),
   'cues:save': z.strictObject({ projectId: id, cues: z.array(CueSchema).max(2000) }),
   'render:start': z.strictObject({ projectId: id }),
   'render:cancel': z.strictObject({ jobId: id }),

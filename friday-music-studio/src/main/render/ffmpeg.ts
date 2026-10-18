@@ -16,7 +16,11 @@ export interface RenderSpec {
   durationSec: number;
   background: { kind: 'image' | 'video'; path: string } | { kind: 'color'; color: string };
   backgroundDim: number;
+  /** Slow pan across a still image. Ignored for video and colour backgrounds. */
+  backgroundMotion: 'none' | 'drift';
   assContent: string;
+  /** Directory of bundled fonts for libass, or null to use system fonts only. */
+  fontsDir: string | null;
 }
 
 export interface RenderResult {
@@ -48,15 +52,20 @@ export function buildFfmpegArgs(spec: RenderSpec, partialPath: string): string[]
   args.push('-i', spec.audioPath);
 
   const dim = Math.min(0.8, Math.max(0, spec.backgroundDim));
-  const filters = [
-    'scale=1920:1080:force_original_aspect_ratio=increase',
-    'crop=1920:1080',
-    'setsar=1',
-    `fps=${FPS}`,
-  ];
+  const drift = bg.kind === 'image' && spec.backgroundMotion === 'drift';
+  const filters = drift
+    ? [
+        // Overscan 15%, then slide the 1080p window across it on a 90s sine.
+        'scale=2208:1242:force_original_aspect_ratio=increase',
+        'crop=2208:1242',
+        `crop=1920:1080:x='(iw-ow)/2*(1+sin(2*PI*t/90))':y='(ih-oh)/2*(1+0.5*sin(2*PI*t/70))'`,
+        'setsar=1',
+        `fps=${FPS}`,
+      ]
+    : ['scale=1920:1080:force_original_aspect_ratio=increase', 'crop=1920:1080', 'setsar=1', `fps=${FPS}`];
   if (dim > 0) filters.push(`drawbox=x=0:y=0:w=iw:h=ih:color=black@${dim.toFixed(2)}:t=fill`);
   // Relative filename: avoids filter-graph escaping of absolute paths. cwd = workDir.
-  filters.push('subtitles=filename=lyrics.ass', 'format=yuv420p');
+  filters.push(spec.fontsDir ? 'subtitles=filename=lyrics.ass:fontsdir=fonts' : 'subtitles=filename=lyrics.ass', 'format=yuv420p');
 
   args.push(
     '-filter_complex', `[0:v]${filters.join(',')}[v]`,
@@ -86,6 +95,13 @@ export async function runRender(
   await fs.mkdir(spec.workDir, { recursive: true });
   await fs.mkdir(path.dirname(spec.outputPath), { recursive: true });
   await fs.writeFile(path.join(spec.workDir, 'lyrics.ass'), spec.assContent, 'utf8');
+  if (spec.fontsDir) {
+    const fontsOut = path.join(spec.workDir, 'fonts');
+    await fs.mkdir(fontsOut, { recursive: true });
+    for (const f of await fs.readdir(spec.fontsDir)) {
+      if (/\.(ttf|otf)$/i.test(f)) await fs.copyFile(path.join(spec.fontsDir, f), path.join(fontsOut, f));
+    }
+  }
   const partialPath = `${spec.outputPath}.partial`;
   const args = buildFfmpegArgs(spec, partialPath);
 

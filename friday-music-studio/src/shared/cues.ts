@@ -26,14 +26,23 @@ export function splitCueLines(text: string): string[] {
     .filter((l) => l.length > 0);
 }
 
+export interface LayoutOptions {
+  upper?: boolean;
+  /** Size multiplier, 0.8..1.6. */
+  scale?: number;
+}
+
 /** Lines are never auto-wrapped; long lines shrink the font instead. */
-export function layoutCue(text: string): CueLayout {
-  const lines = splitCueLines(text).slice(0, MAX_LINES);
+export function layoutCue(text: string, opts: LayoutOptions = {}): CueLayout {
+  const scale = Math.min(1.6, Math.max(0.8, opts.scale ?? 1));
+  let lines = splitCueLines(text).slice(0, MAX_LINES);
+  if (opts.upper) lines = lines.map((l) => l.toLocaleUpperCase());
   const longest = lines.reduce((m, l) => Math.max(m, [...l].length), 0);
-  let fontPx = BASE_FONT_PX;
-  if (longest > COMFORT_CHARS) {
-    fontPx = Math.max(MIN_FONT_PX, Math.floor((BASE_FONT_PX * COMFORT_CHARS) / longest));
-  }
+  const base = Math.round(BASE_FONT_PX * scale);
+  // Capitals run wider, so they get fewer characters per line before shrinking.
+  const comfort = (COMFORT_CHARS * (opts.upper ? 0.85 : 1)) / scale;
+  let fontPx = base;
+  if (longest > comfort) fontPx = Math.max(MIN_FONT_PX, Math.floor((base * comfort) / longest));
   return { lines, fontPx };
 }
 

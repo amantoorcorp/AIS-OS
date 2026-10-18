@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Store } from '../src/main/db';
 import { probeMedia, runRender, synthesizeTone, RenderCancelledError } from '../src/main/render/ffmpeg';
 import { StudioService } from '../src/main/studio';
+import { skyLyricBranding } from '../src/shared/defaults';
 
 let root: string;
 let fixtures: string;
@@ -21,7 +22,7 @@ beforeAll(async () => {
   execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=s=1280x720', '-frames:v', '1', path.join(fixtures, 'bg.png')]);
   execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=s=640x360:r=25', '-t', '2', '-pix_fmt', 'yuv420p', path.join(fixtures, 'bg.mp4')]);
   store = new Store(path.join(root, 'data', 'friday.sqlite'));
-  studio = new StudioService(store, path.join(root, 'data'));
+  studio = new StudioService(store, path.join(root, 'data'), path.resolve(__dirname, '../src/renderer/public'));
 });
 
 afterAll(() => {
@@ -81,6 +82,20 @@ describe('Phase 1 pipeline', () => {
     await studio.importAsset(q.id, 'audio', path.join(fixtures, 'song.mp3'));
     const b = await renderProject(q.id);
     expect(b.output.verified).toBe(true);
+  });
+
+  it('imports a sky preset and exports with drift + bundled font', async () => {
+    const p = studio.createProject('Sky', '');
+    await studio.importAsset(p.id, 'audio', path.join(fixtures, 'song.mp3'));
+    const sky = await studio.importPreset(p.id, 'sunset');
+    expect(studio.getDetail(p.id).project.backgroundAssetId).toBe(sky.id);
+    expect((await studio.importPreset(p.id, 'sunset')).id).toBe(sky.id); // no duplicates
+    studio.updateProject(p.id, { branding: skyLyricBranding(studio.getDetail(p.id).project.branding) });
+    studio.saveCues(p.id, [{ id: '44444444-4444-4444-8444-444444444444', startMs: 200, endMs: 5000, text: 'we chase the light\nbefore it fades' }]);
+    const { output, spec } = await renderProject(p.id);
+    expect(spec.backgroundMotion).toBe('drift');
+    expect(spec.fontsDir).toMatch(/fonts$/);
+    expect(output.probe).toMatchObject({ width: 1920, height: 1080 });
   });
 
   it('blocks export when cues have errors', async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { assTime, buildAss, sanitizeAssText } from '../src/main/render/ass';
-import { DEFAULT_BRANDING } from '../src/shared/defaults';
+import { DEFAULT_BRANDING, skyLyricBranding } from '../src/shared/defaults';
 
 describe('ass', () => {
   it('formats centisecond timestamps', () => {
@@ -28,5 +28,18 @@ describe('ass', () => {
     expect(ass).toContain('line one\\Nline two');
     expect(ass).not.toContain('untimed');
     expect(ass).toContain(',Mark,,0,0,0,,My Channel');
+    expect(ass).toMatch(/\\fad\(180,180\)/);
+  });
+
+  it('applies sky-lyric options: capitals, bottom-right logo, bundled font', () => {
+    const ass = buildAss(
+      [{ id: '1', startMs: 0, endMs: 3000, text: 'we chase the light' }],
+      skyLyricBranding({ ...DEFAULT_BRANDING, watermarkText: 'Friday' }),
+      5000,
+    );
+    expect(ass).toContain('WE CHASE THE LIGHT');
+    expect(ass).toContain('Style: Lyric,Permanent Marker,84,');
+    expect(ass).toContain('{\\fs126');
+    expect(ass).toMatch(/Style: Mark,[^\n]*,3,60,60,50,1/);
   });
 });

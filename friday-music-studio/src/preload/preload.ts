@@ -28,6 +28,7 @@ const api = {
   updateProject: (projectId: string, patch: Patch) => call('projects:update', { projectId, patch }),
   archiveProject: (projectId: string) => call('projects:archive', { projectId }),
   importAsset: (projectId: string, kind: 'audio' | 'image' | 'video') => call('assets:import', { projectId, kind }),
+  importPreset: (projectId: string, presetId: 'sunset' | 'dusk' | 'golden' | 'night') => call('assets:importPreset', { projectId, presetId }),
   saveCues: (projectId: string, cues: LyricCue[]) => call('cues:save', { projectId, cues }),
   startRender: (projectId: string) => call('render:start', { projectId }),
   cancelRender: (jobId: string) => call('render:cancel', { jobId }),

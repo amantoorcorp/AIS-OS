@@ -61,6 +61,8 @@ const RENDERER_MIME: Record<string, string> = {
   '.css': 'text/css',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.ttf': 'font/ttf',
   '.woff2': 'font/woff2',
 };
 
@@ -236,6 +238,8 @@ function registerHandlers() {
     return studio.importAsset(projectId, kind, res.filePaths[0]);
   });
 
+  handle('assets:importPreset', ({ projectId, presetId }) => studio.importPreset(projectId, presetId));
+
   handle('cues:save', ({ projectId, cues }) => studio.saveCues(projectId, cues));
 
   handle('render:start', ({ projectId }) => {
@@ -353,7 +357,8 @@ app.whenReady().then(async () => {
   session.defaultSession.setPermissionCheckHandler(() => false);
 
   const store = new Store(path.join(dataDir, 'friday.sqlite'));
-  studio = new StudioService(store, dataDir);
+  // Vite copies src/renderer/public into dist/renderer, so fonts/ and backgrounds/ live there.
+  studio = new StudioService(store, dataDir, path.join(__dirname, '..', 'renderer'));
   const recovered = await studio.recover();
   if (recovered.interrupted.length || recovered.reconcile.length)
     log('warn', `recovered jobs: ${recovered.interrupted.length} interrupted, ${recovered.reconcile.length} need reconcile`);
