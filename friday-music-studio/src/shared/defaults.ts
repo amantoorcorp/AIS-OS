@@ -7,7 +7,7 @@ export const DEFAULT_BRANDING: Branding = {
   backgroundDim: 0.35,
   backgroundColor: '#14141c',
   lyricPosition: 'center',
-  fontFamily: 'DejaVu Sans',
+  fontFamily: 'Arial',
 };
 
 export const DEFAULT_SETTINGS: Settings = {

@@ -91,7 +91,7 @@ Jobs are stored in SQLite with type `generation | download | render | upload | s
 | vite 7, @vitejs/plugin-react, esbuild | MIT | build only |
 | vitest, typescript, playwright-core | MIT / Apache-2.0 | dev only |
 | **FFmpeg** (not bundled) | LGPL-2.1+, **GPL if built with x264/libass GPL parts** | Most builds with libx264 are GPL. Bundling one in a distributed app brings GPL obligations (source offer, licence text). Phase 1 avoids this by using the user's installed FFmpeg. Before you ship installers, decide: keep FFmpeg user-installed, or bundle an LGPL build with a non-GPL H.264 encoder, or accept GPL terms. |
-| Fonts | depends on the font | The default is DejaVu Sans (free licence). Any font you set for branding must allow video embedding. |
+| Fonts | depends on the font | The default is Arial, which ships with macOS and Windows (Linux substitutes a metric-compatible font). Any font you set for branding must allow video embedding. |
 
 ## What's missing (you need to supply)
 

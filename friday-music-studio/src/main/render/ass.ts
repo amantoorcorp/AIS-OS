@@ -21,7 +21,7 @@ export function assTime(ms: number): string {
 
 function sanitizeFontName(name: string): string {
   const cleaned = name.replace(/[,\r\n{}\\]/g, '').trim();
-  return cleaned.length > 0 ? cleaned : 'DejaVu Sans';
+  return cleaned.length > 0 ? cleaned : 'Arial';
 }
 
 export function buildAss(cues: LyricCue[], branding: Branding, durationMs: number): string {
