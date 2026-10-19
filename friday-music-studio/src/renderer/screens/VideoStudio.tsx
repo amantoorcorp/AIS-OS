@@ -16,6 +16,8 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
   const [nowMs, setNowMs] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [tapIndex, setTapIndex] = useState<number | null>(null);
+  const [hinted, setHinted] = useState<Set<string>>(new Set());
+  const [autoNote, setAutoNote] = useState<{ unheard: string[]; coverage: number } | null>(null);
   const [render, setRender] = useState<RenderProgressEvent | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const { busy, error, setError, run } = useAction();
@@ -310,6 +312,23 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
         >
           <div className="row wrap">
             <button
+              className="primary"
+              disabled={busy || !audio || !project.lyrics.trim()}
+              title="Listens to the song on this Mac and sets each lyric line to when it is sung"
+              onClick={() => {
+                if (cues.length && !confirm('Replace the current cues with timing found from the audio? Nothing is saved until you click Save cues.')) return;
+                void run(async () => {
+                  const r = await api.autoTimeCues(project.id);
+                  setCues(r.cues);
+                  setHinted(new Set(r.hintedCueIds));
+                  setAutoNote({ unheard: r.unheardLines, coverage: r.coverage });
+                  setTapIndex(null);
+                });
+              }}
+            >
+              {busy ? 'Listening… (about 1 to 3 min)' : 'Auto-time from audio'}
+            </button>
+            <button
               onClick={() => {
                 if (cues.length && !confirm('Replace all cues with one per lyric line? Timings will be cleared.')) return;
                 setCues(cuesFromLyrics(project.lyrics, newId));
@@ -338,6 +357,16 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
           <p className="muted small-text">
             Lyrics on paper rarely match the sung timing exactly. Automatic spreading is only a starting point; every start/end stays editable.
           </p>
+          {autoNote && (
+            <div className="banner warn">
+              <div>
+                Matched {Math.round(autoNote.coverage * 100)}% of your lyric lines to the audio. {hinted.size} marked "check by ear" were only
+                recognised with your lyrics as a hint: press ▶ on them to confirm.
+                {autoNote.unheard.length > 0 && ` ${autoNote.unheard.length} line(s) were not heard and were left out (the singer may skip them):`}
+                {autoNote.unheard.length > 0 && <ul>{autoNote.unheard.map((l, k) => <li key={k}>{l}</li>)}</ul>}
+              </div>
+            </div>
+          )}
           {issues.length > 0 && (
             <div className={errorCount ? 'banner error' : 'banner warn'}>
               {errorCount} error(s), {issues.length - errorCount} warning(s). Export is blocked until errors are fixed.
@@ -381,6 +410,7 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
                     </button>
                     <button className="tiny danger" title="Delete cue" onClick={() => setCues((cs) => cs.filter((x) => x.id !== c.id))}>✕</button>
                   </div>
+                  {hinted.has(c.id) && <div className="cue-issue warning">Check by ear: heard only with the lyrics as a hint.</div>}
                   {cueIssues.map((x, k) => (
                     <div key={k} className={`cue-issue ${x.level}`}>{x.message}</div>
                   ))}

@@ -144,6 +144,16 @@ export interface Settings {
   defaultBranding: Branding;
 }
 
+/** Result of auto lyric timing. Nothing is saved; the user reviews the cues first. */
+export interface AutoTimeResponse {
+  cues: LyricCue[];
+  /** Cues recognised only with the lyrics as a hint. Real timing, but check them by ear. */
+  hintedCueIds: string[];
+  /** Lyric lines that were not heard in the audio, in song order. */
+  unheardLines: string[];
+  coverage: number;
+}
+
 export interface ToolStatus {
   ok: boolean;
   path: string;

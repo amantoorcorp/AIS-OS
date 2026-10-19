@@ -4,11 +4,13 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { createReadStream, promises as fs } from 'node:fs';
 import path from 'node:path';
-import { validateCues } from '../shared/cues';
+import { cuesFromAlignment } from '../shared/align';
+import { cuesFromLyrics, validateCues } from '../shared/cues';
 import { BACKGROUND_PRESETS, isValidTimezone, type BackgroundPresetId } from '../shared/defaults';
 import type {
   Asset,
   AssetKind,
+  AutoTimeResponse,
   DashboardSummary,
   GenerationPreview,
   Job,
@@ -26,6 +28,8 @@ import { MockProvider } from './providers/mock';
 import { SunoProvider } from './providers/suno';
 import { ProviderNotConfiguredError, type MusicProvider } from './providers/types';
 import { redactError } from './redact';
+import { autoTimeLines } from './autotime';
+import { findModel, findWhisperCli, openEars } from './transcribe';
 
 const EXT: Record<AssetKind, Record<string, string>> = {
   audio: { '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.flac': 'audio/flac', '.ogg': 'audio/ogg' },
@@ -209,6 +213,41 @@ export class StudioService {
     const ids = new Set(cues.map((c) => c.id));
     if (ids.size !== cues.length) throw new Error('Duplicate cue IDs');
     this.store.replaceCues(projectId, [...cues].sort((a, b) => a.startMs - b.startMs));
+  }
+
+  /**
+   * Hears the chosen audio locally (whisper.cpp) and matches the project's lyrics to it,
+   * so each line gets the time it is actually sung. Returns a proposal; nothing is saved.
+   */
+  async autoTimeCues(projectId: string): Promise<AutoTimeResponse> {
+    const project = this.requireProject(projectId);
+    if (!project.chosenAudioAssetId) throw new Error('Choose or import an audio track first.');
+    const audio = this.requireAsset(projectId, project.chosenAudioAssetId, ['audio']);
+    const durationMs = (audio.asset.durationSec ?? 0) * 1000;
+    if (!durationMs) throw new Error('Audio duration unknown; re-import the track.');
+    const lines = cuesFromLyrics(project.lyrics, () => '').map((c) => c.text);
+    if (lines.length === 0) throw new Error('Add lyrics to the project first.');
+
+    const whisperPath = await findWhisperCli();
+    if (!whisperPath) throw new Error('Auto timing needs whisper.cpp. In Terminal run: brew install whisper-cpp');
+    const modelsDir = path.join(this.dataDir, 'models');
+    const modelPath = await findModel(modelsDir);
+    if (!modelPath) throw new Error(`Auto timing needs a speech model. Put ggml-small.en.bin in: ${modelsDir}`);
+
+    const ears = await openEars(audio.storedPath, { ffmpegPath: this.ffmpegPath(), whisperPath, modelPath });
+    try {
+      const result = await autoTimeLines(lines, ears, durationMs);
+      const cues = cuesFromAlignment(result, () => randomUUID());
+      const hinted = new Set(result.lines.filter((l) => l.timed && l.hinted).map((l) => l.text));
+      return {
+        cues,
+        hintedCueIds: cues.filter((c) => hinted.has(c.text)).map((c) => c.id),
+        unheardLines: result.lines.filter((l) => !l.timed).map((l) => l.text),
+        coverage: result.coverage,
+      };
+    } finally {
+      await ears.close();
+    }
   }
 
   // ---------- render ----------

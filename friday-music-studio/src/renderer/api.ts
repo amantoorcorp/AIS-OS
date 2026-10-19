@@ -4,6 +4,7 @@ import type { IpcResult } from '../shared/ipc';
 import type {
   Approval,
   Asset,
+  AutoTimeResponse,
   DashboardSummary,
   GenerationPreview,
   Job,
@@ -40,6 +41,7 @@ export const api = {
   archiveProject: (id: string) => u<void>(b().archiveProject(id)),
   importAsset: (id: string, kind: 'audio' | 'image' | 'video') => u<Asset | null>(b().importAsset(id, kind)),
   importPreset: (id: string, presetId: 'sunset' | 'dusk' | 'golden' | 'night') => u<Asset>(b().importPreset(id, presetId)),
+  autoTimeCues: (id: string) => u<AutoTimeResponse>(b().autoTimeCues(id)),
   saveCues: (id: string, cues: LyricCue[]) => u<void>(b().saveCues(id, cues)),
   startRender: (id: string) => u<{ jobId: string }>(b().startRender(id)),
   cancelRender: (jobId: string) => u<boolean>(b().cancelRender(jobId)),
