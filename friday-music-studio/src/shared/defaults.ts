@@ -40,7 +40,9 @@ export function skyLyricBranding(current: Branding): Branding {
     lyricPosition: 'center',
     watermarkPosition: 'bottom_right',
     backgroundDim: 0.1,
-    backgroundMotion: 'drift',
+    // Drift zooms the picture in 15% and pans it, which crops user pictures. Opt in from Branding.
+    backgroundMotion: 'none',
+    backgroundFit: 'whole',
   };
 }
 

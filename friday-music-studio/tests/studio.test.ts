@@ -85,7 +85,7 @@ describe('Phase 1 pipeline', () => {
     expect(b.output.verified).toBe(true);
   });
 
-  it('imports a sky preset and exports with drift + bundled font', async () => {
+  it('imports a sky preset and exports still, whole-picture and bundled font', async () => {
     const p = studio.createProject('Sky', '');
     await studio.importAsset(p.id, 'audio', path.join(fixtures, 'song.mp3'));
     const sky = await studio.importPreset(p.id, 'sunset');
@@ -94,7 +94,8 @@ describe('Phase 1 pipeline', () => {
     studio.updateProject(p.id, { branding: skyLyricBranding(studio.getDetail(p.id).project.branding) });
     studio.saveCues(p.id, [{ id: '44444444-4444-4444-8444-444444444444', startMs: 200, endMs: 5000, text: 'we chase the light\nbefore it fades' }]);
     const { output, spec } = await renderProject(p.id);
-    expect(spec.backgroundMotion).toBe('drift');
+    expect(spec.backgroundMotion).toBe('none');
+    expect(spec.backgroundFit).toBe('whole');
     expect(spec.fontsDir).toMatch(/fonts$/);
     expect(output.probe).toMatchObject({ width: 1920, height: 1080 });
   });
