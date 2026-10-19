@@ -82,12 +82,13 @@ export function buildFfmpegArgs(spec: RenderSpec, partialPath: string): string[]
   // Relative filename: avoids filter-graph escaping of absolute paths. cwd = workDir.
   filters.push(
     spec.fontsDir ? 'subtitles=filename=lyrics.ass:fontsdir=fonts' : 'subtitles=filename=lyrics.ass',
-    // Pictures are full-range sRGB. Convert to HD (BT.709, limited range) explicitly and tag the file,
-    // otherwise players guess a different matrix and the colours look washed out.
+    // Pictures are sRGB. Convert to HD (BT.709 matrix, limited range) explicitly and tag the file with the
+    // sRGB transfer curve. Tagging the BT.709 curve instead makes macOS players show skin tones lighter
+    // than the picture (measured: +6 levels), because the picture's values are sRGB-encoded.
     'scale=out_color_matrix=bt709:out_range=tv',
     'format=yuv420p',
     // Frames carry their own colour tags; set them all so the encoder writes BT.709 everywhere.
-    'setparams=colorspace=bt709:color_primaries=bt709:color_trc=bt709:range=tv',
+    'setparams=colorspace=bt709:color_primaries=bt709:color_trc=iec61966-2-1:range=tv',
   );
 
   args.push(
@@ -97,7 +98,7 @@ export function buildFfmpegArgs(spec: RenderSpec, partialPath: string): string[]
     '-c:v', 'libx264',
     '-colorspace', 'bt709',
     '-color_primaries', 'bt709',
-    '-color_trc', 'bt709',
+    '-color_trc', 'iec61966-2-1',
     '-color_range', 'tv',
     '-preset', 'medium',
     '-crf', '20',

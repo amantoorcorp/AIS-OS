@@ -236,7 +236,7 @@ describe('generation approval (mock provider)', () => {
     const output = await studio.finishRender(job.id, result);
     expect(output.probe).toMatchObject({ width: 3840, height: 2160, videoCodec: 'h264' });
     const tags = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=color_space,color_primaries,color_transfer,color_range', '-of', 'csv=p=0', spec.outputPath]).toString().trim();
-    expect(tags).toBe('tv,bt709,bt709,bt709'); // range, matrix, transfer, primaries // tagged as HD so players show the picture's real colours
+    expect(tags).toBe('tv,bt709,iec61966-2-1,bt709'); // range, matrix, transfer (sRGB), primaries 
     expect(studio.getDetail(p.id).jobs.find((j) => j.id === job.id)?.status).toBe('succeeded');
   });
 });
