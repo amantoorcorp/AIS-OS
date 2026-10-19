@@ -125,3 +125,17 @@ Jobs are stored in SQLite with type `generation | download | render | upload | s
 - **YouTube Partner Program** rules on *inauthentic / mass-produced, repetitive content* target exactly the "auto-generate songs and auto-post" pattern. Channels like that get demonetised. A human-curated catalogue with a real identity, a regular schedule and real promotion works better. That's why every step in this app has an approval gate.
 - **Rights:** read Suno's current terms. Commercial use and ownership have depended on your plan at the time a track was generated. Keep your rights notes in each project; the release review requires them.
 - Expect income to be small and slow. Treat it as a creative catalogue that might grow, not passive income.
+
+## Optional AI picture sharpening (4K)
+
+`scripts/install-upscaler.sh` installs Real-ESRGAN (ncnn/Vulkan) into the app's data folder. Then tick
+**Sharpen small pictures with AI** in Branding; 4K exports use a 4x upscaled copy of a small picture
+(made once, cached). Runs on this Mac only. Measured on a real 1672x941 picture: colours unchanged
+(mean RGB 156,111,85 vs 156,111,86), edges cleaner, skin slightly smoother.
+Licences: Real-ESRGAN code MIT; model realesrgan-x4plus BSD-3-Clause.
+
+## Library folder
+
+Every finished video is mirrored into `~/Movies/Friday Music Studio/<song>/` (hard links, no extra disk
+use) with `lyrics.txt`, `lyrics.srt` and a `source/` folder holding the audio and picture. Change the
+folder from the Export box in Video Studio.

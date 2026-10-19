@@ -243,17 +243,36 @@ function registerHandlers() {
   handle('cues:autoTime', ({ projectId, estimateMissing }) => studio.autoTimeCues(projectId, estimateMissing));
   handle('cues:save', ({ projectId, cues }) => studio.saveCues(projectId, cues));
 
+  /** Renders that are still preparing (e.g. AI-upscaling the picture) and have not reached the worker yet. */
+  const preparing = new Set<string>();
+
   handle('render:start', ({ projectId, quality }) => {
     const { job, spec } = studio.prepareRender(projectId, quality);
     activeRenders.set(job.id, projectId);
+    preparing.add(job.id);
     studio.store.updateJob(job.id, { status: 'running' });
-    getWorker().postMessage({ type: 'start', jobId: job.id, spec });
     emitRender(job.id, projectId, 'running', 0, null);
     broadcast(EVENT_JOBS_CHANGED);
+    // The optional AI upscale can take about 30 s the first time; it must not block the window.
+    void studio
+      .applyUpscale(projectId, spec, quality)
+      .catch(() => spec)
+      .then((finalSpec) => {
+        if (!preparing.delete(job.id)) return; // cancelled while preparing
+        getWorker().postMessage({ type: 'start', jobId: job.id, spec: finalSpec });
+      });
     return { jobId: job.id };
   });
-  handle('render:cancel', ({ jobId }) => {
+  handle('render:cancel', async ({ jobId }) => {
     if (!activeRenders.has(jobId)) throw new Error('That render is not running.');
+    if (preparing.delete(jobId)) {
+      const projectId = activeRenders.get(jobId)!;
+      activeRenders.delete(jobId);
+      await studio.failRender(jobId, 'cancelled', null);
+      emitRender(jobId, projectId, 'cancelled', 0, null);
+      broadcast(EVENT_JOBS_CHANGED);
+      return true;
+    }
     worker?.postMessage({ type: 'cancel', jobId });
     return true;
   });

@@ -44,6 +44,8 @@ export interface Branding {
   /** Slow pan across still-image backgrounds. */
   backgroundMotion: BackgroundMotion;
   backgroundFit: BackgroundFit;
+  /** 4K only: sharpen a small picture with the local AI upscaler (Real-ESRGAN) before rendering. */
+  backgroundUpscale: boolean;
   /** 0..0.8 darkening applied over the background so white lyrics stay readable. */
   backgroundDim: number;
   /** Used when no background asset is chosen. */

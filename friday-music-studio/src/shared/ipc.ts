@@ -15,6 +15,7 @@ export const BrandingSchema = z.strictObject({
   textScale: z.number().min(0.4).max(2),
   backgroundMotion: z.enum(['none', 'drift']),
   backgroundFit: z.enum(['fill', 'whole']),
+  backgroundUpscale: z.boolean(),
   backgroundDim: z.number().min(0).max(0.8),
   backgroundColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   lyricPosition: z.enum(['center', 'lower']),

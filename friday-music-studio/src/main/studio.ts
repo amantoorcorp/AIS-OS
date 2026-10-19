@@ -34,6 +34,7 @@ import { autoTimeFromEmbedded, autoTimeLines } from './autotime';
 import { readEmbeddedLyrics } from './embedded';
 import { matchEmbedded } from '../shared/embedded';
 import { findModel, findWhisperCli, openEars } from './transcribe';
+import { needsUpscale, upscalePicture } from './upscale';
 
 const EXT: Record<AssetKind, Record<string, string>> = {
   audio: { '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.flac': 'audio/flac', '.ogg': 'audio/ogg' },
@@ -537,6 +538,25 @@ export class StudioService {
       artist: project.artist,
       rightsNotes: project.rightsNotes,
     });
+  }
+
+  /**
+   * 4K + "Sharpen with AI": swap the background for its cached x4 upscale. Never fails the render:
+   * without the upscaler or on any error the original picture is used.
+   */
+  async applyUpscale(projectId: string, spec: RenderSpec, quality: RenderQuality): Promise<RenderSpec> {
+    const project = this.requireProject(projectId);
+    const bgId = project.backgroundAssetId;
+    if (!bgId || spec.background.kind !== 'image') return spec;
+    const a = this.store.getAssetPath(bgId);
+    if (!a || !needsUpscale({ enabled: project.branding.backgroundUpscale === true, quality, kind: a.asset.kind, widthPx: a.asset.width })) return spec;
+    const up = await upscalePicture(this.dataDir, path.join(this.projectDir(projectId), 'upscaled'), bgId, a.storedPath);
+    if (!up) return spec;
+    return {
+      ...spec,
+      background: { kind: 'image', path: up },
+      backgroundSize: a.asset.width && a.asset.height ? { width: a.asset.width * 4, height: a.asset.height * 4 } : spec.backgroundSize,
+    };
   }
 
   // ---------- library: one visible folder with everything ----------

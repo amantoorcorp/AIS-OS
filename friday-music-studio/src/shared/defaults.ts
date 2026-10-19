@@ -9,6 +9,7 @@ export const DEFAULT_BRANDING: Branding = {
   textScale: 1,
   backgroundMotion: 'none',
   backgroundFit: 'fill',
+  backgroundUpscale: false,
   backgroundDim: 0.35,
   backgroundColor: '#14141c',
   lyricPosition: 'center',

@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Store } from '../src/main/db';
+import { needsUpscale, upscalerInstalled } from '../src/main/upscale';
 import { cuesToSrt } from '../src/shared/cues';
 import { checkColour } from '../src/main/render/quality';
 import { buildFfmpegArgs, checkFfmpeg, encoderTuning, probeMedia, runRender, synthesizeTone, RenderCancelledError } from '../src/main/render/ffmpeg';
@@ -301,4 +302,31 @@ describe('generation approval (mock provider)', () => {
   it('writes standard SRT subtitles', () => {
     expect(cuesToSrt([{ id: 'a', startMs: 3_723_450, endMs: 3_725_000, text: 'two\nlines' }, { id: 'b', startMs: 0, endMs: 0, text: 'skipped' }])).toBe('1\n01:02:03,450 --> 01:02:05,000\ntwo\nlines\n');
   });
+
+  it('decides when AI upscaling applies', () => {
+    expect(needsUpscale({ enabled: true, quality: '4k', kind: 'image', widthPx: 1672 })).toBe(true);
+    expect(needsUpscale({ enabled: false, quality: '4k', kind: 'image', widthPx: 1672 })).toBe(false);
+    expect(needsUpscale({ enabled: true, quality: '1080p', kind: 'image', widthPx: 1672 })).toBe(false);
+    expect(needsUpscale({ enabled: true, quality: '4k', kind: 'image', widthPx: 4256 })).toBe(false);
+    expect(needsUpscale({ enabled: true, quality: '4k', kind: 'video', widthPx: 1280 })).toBe(false);
+  });
+
+  it('uses the AI-upscaled picture for a 4K render when installed (skipped where the upscaler is absent)', async (ctx) => {
+    const installed = path.join(os.homedir(), 'Library', 'Application Support', 'friday-music-studio', 'tools');
+    if (existsSync(installed)) process.env.FMS_TOOLS_DIR = installed;
+    if (!(await upscalerInstalled(studio.dataDir))) return ctx.skip();
+    const p = studio.createProject('Upscaled', '');
+    await studio.importAsset(p.id, 'audio', path.join(fixtures, 'song.mp3'));
+    await studio.importAsset(p.id, 'image', path.join(fixtures, 'bg.png')); // 1280x720
+    studio.updateProject(p.id, { branding: { ...studio.getDetail(p.id).project.branding, backgroundUpscale: true } });
+    studio.saveCues(p.id, [{ id: '88888888-8888-4888-8888-888888888888', startMs: 200, endMs: 2000, text: 'sharp' }]);
+    const { spec } = studio.prepareRender(p.id, '4k');
+    const finalSpec = await studio.applyUpscale(p.id, spec, '4k');
+    expect(finalSpec.background).toMatchObject({ kind: 'image' });
+    expect((finalSpec.background as { path: string }).path).toMatch(/-x4\.png$/);
+    expect(finalSpec.backgroundSize).toEqual({ width: 5120, height: 2880 });
+    // Off => untouched.
+    studio.updateProject(p.id, { branding: { ...studio.getDetail(p.id).project.branding, backgroundUpscale: false } });
+    expect((await studio.applyUpscale(p.id, spec, '4k')).background).toEqual(spec.background);
+  }, 120_000);
 });
