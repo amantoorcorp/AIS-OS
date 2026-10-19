@@ -39,7 +39,7 @@ export interface Branding {
   watermarkText: string;
   watermarkPosition: WatermarkPosition;
   textCase: TextCase;
-  /** Lyric size multiplier, 0.8..1.6. */
+  /** Lyric size multiplier, 0.4..2. */
   textScale: number;
   /** Slow pan across still-image backgrounds. */
   backgroundMotion: BackgroundMotion;

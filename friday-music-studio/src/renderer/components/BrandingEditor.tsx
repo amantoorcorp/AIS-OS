@@ -28,7 +28,7 @@ export function BrandingEditor({ value, onSave }: { value: Branding; onSave: (b:
       </label>
       <label className="field">
         <span>Lyric size ({Math.round(b.textScale * 100)}%)</span>
-        <input type="range" min={0.8} max={1.6} step={0.05} value={b.textScale} onChange={(e) => setB({ ...b, textScale: Number(e.target.value) })} />
+        <input type="range" min={0.4} max={2} step={0.05} value={b.textScale} onChange={(e) => setB({ ...b, textScale: Number(e.target.value) })} />
       </label>
       <label className="field">
         <span>Background motion</span>

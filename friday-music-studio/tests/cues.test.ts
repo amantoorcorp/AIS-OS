@@ -69,3 +69,30 @@ describe('shiftCues', () => {
     expect(late.every((c) => c.endMs <= 20_000 && c.endMs > c.startMs)).toBe(true);
   });
 });
+
+describe('layoutCue fitting', () => {
+  it('allows small and large sizes without the floor making small text bigger', () => {
+    expect(layoutCue('short', { scale: 0.4 }).fontPx).toBe(Math.round(BASE_FONT_PX * 0.4));
+    expect(layoutCue('short', { scale: 2 }).fontPx).toBe(Math.round(BASE_FONT_PX * 2));
+    const small = layoutCue('a fairly long lyric line goes here today', { scale: 0.4 });
+    expect(small.fontPx).toBeLessThanOrEqual(Math.round(BASE_FONT_PX * 0.4));
+  });
+
+  it('shrinks a line moved toward the right edge so it stays inside the frame', () => {
+    const centred = layoutCue('Let a little colour fill the empty space');
+    const moved = layoutCue('Let a little colour fill the empty space', { offsetXPx: 600 });
+    expect(moved.fontPx).toBeLessThan(centred.fontPx);
+    // Room right of centre 1560 => 2*(1920-1560-60)=600px wide; estimated text width must fit it.
+    const longest = Math.max(...moved.lines.map((l) => [...l].length));
+    expect(longest * moved.fontPx * 0.5).toBeLessThanOrEqual(600 * 1.15);
+    expect(moved.lines.length).toBe(2); // split in two instead of shrinking to a sliver
+  });
+
+  it('does not change anything when not moved', () => {
+    expect(layoutCue('short', { offsetXPx: 0 }).fontPx).toBe(BASE_FONT_PX);
+  });
+
+  it('keeps a line whole when the lyrics are not moved', () => {
+    expect(layoutCue('Let a little colour fill the empty space').lines).toHaveLength(1);
+  });
+});

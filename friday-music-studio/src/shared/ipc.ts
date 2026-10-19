@@ -12,7 +12,7 @@ export const BrandingSchema = z.strictObject({
   watermarkText: shortText(80),
   watermarkPosition: z.enum(['top_left', 'bottom_right']),
   textCase: z.enum(['as_written', 'upper']),
-  textScale: z.number().min(0.8).max(1.6),
+  textScale: z.number().min(0.4).max(2),
   backgroundMotion: z.enum(['none', 'drift']),
   backgroundFit: z.enum(['fill', 'whole']),
   backgroundDim: z.number().min(0).max(0.8),

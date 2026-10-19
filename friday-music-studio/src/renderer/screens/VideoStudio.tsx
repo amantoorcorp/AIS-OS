@@ -507,7 +507,7 @@ function lyricLook(b: Branding): React.CSSProperties {
 
 /** Same layout rules as the ASS export: 1920-wide coordinate space scaled with container units. */
 function LyricPreview({ branding, background, cue }: { branding: Branding; background: { kind: string; id: string } | null; cue: LyricCue | null }) {
-  const layout = cue ? layoutCue(cue.text, { upper: branding.textCase === 'upper', scale: branding.textScale }) : null;
+  const layout = cue ? layoutCue(cue.text, { upper: branding.textCase === 'upper', scale: branding.textScale, offsetXPx: (branding.lyricOffsetX ?? 0) * 19.2 }) : null;
   const whole = background?.kind === 'image' && branding.backgroundFit === 'whole';
   const drift = background?.kind === 'image' && branding.backgroundMotion === 'drift' && !whole;
   return (

@@ -28,21 +28,55 @@ export function splitCueLines(text: string): string[] {
 
 export interface LayoutOptions {
   upper?: boolean;
-  /** Size multiplier, 0.8..1.6. */
+  /** Size multiplier, 0.4..2. */
   scale?: number;
+  /** Sideways move of the lyrics in px of the 1920-wide frame. Lines shrink so they stay inside the frame. */
+  offsetXPx?: number;
 }
 
-/** Lines are never auto-wrapped; long lines shrink the font instead. */
+/** Side margin kept free on each side of the frame when lyrics are moved sideways. */
+const EDGE_MARGIN_PX = 60;
+/** Usable width of a centred line before it starts to shrink (matches COMFORT_CHARS). */
+const COMFORT_WIDTH_PX = 1680;
+/** Smallest size a line may shrink to when it has to fit beside the edge. */
+const MIN_EDGE_FONT_PX = 24;
+
+/** Splits one line at the space nearest its middle. Returns it unchanged when there is no space. */
+function balancedSplit(line: string): string[] {
+  const chars = [...line];
+  const mid = chars.length / 2;
+  let best = -1;
+  chars.forEach((c, i) => {
+    if (c === ' ' && (best < 0 || Math.abs(i - mid) < Math.abs(best - mid))) best = i;
+  });
+  return best < 0 ? [line] : [chars.slice(0, best).join('').trim(), chars.slice(best + 1).join('').trim()];
+}
+
+/**
+ * Long lines shrink the font instead of wrapping. The one exception: when the lyrics are moved
+ * toward an edge there is little room, so a single long line is split in two balanced lines first.
+ */
 export function layoutCue(text: string, opts: LayoutOptions = {}): CueLayout {
-  const scale = Math.min(1.6, Math.max(0.8, opts.scale ?? 1));
+  const scale = Math.min(2, Math.max(0.4, opts.scale ?? 1));
   let lines = splitCueLines(text).slice(0, MAX_LINES);
   if (opts.upper) lines = lines.map((l) => l.toLocaleUpperCase());
-  const longest = lines.reduce((m, l) => Math.max(m, [...l].length), 0);
+  let longest = lines.reduce((m, l) => Math.max(m, [...l].length), 0);
   const base = Math.round(BASE_FONT_PX * scale);
   // Capitals run wider, so they get fewer characters per line before shrinking.
-  const comfort = (COMFORT_CHARS * (opts.upper ? 0.85 : 1)) / scale;
+  // Moving sideways leaves less room on one side; text is centred on its anchor, so room = twice the nearer edge.
+  const cx = VIDEO_WIDTH / 2 + (opts.offsetXPx ?? 0);
+  const room = 2 * Math.max(0, Math.min(cx, VIDEO_WIDTH - cx) - EDGE_MARGIN_PX);
+  const roomFactor = Math.min(1, Math.max(0.1, room / COMFORT_WIDTH_PX));
+  const comfort = (COMFORT_CHARS * (opts.upper ? 0.85 : 1) * roomFactor) / scale;
+  if (roomFactor < 1 && lines.length === 1 && longest > comfort) {
+    lines = balancedSplit(lines[0]!);
+    longest = lines.reduce((m, l) => Math.max(m, [...l].length), 0);
+  }
   let fontPx = base;
-  if (longest > comfort) fontPx = Math.max(MIN_FONT_PX, Math.floor((base * comfort) / longest));
+  if (longest > comfort) {
+    const floor = Math.min(base, roomFactor < 1 ? MIN_EDGE_FONT_PX : MIN_FONT_PX);
+    fontPx = Math.max(floor, Math.floor((base * comfort) / longest));
+  }
   return { lines, fontPx };
 }
 

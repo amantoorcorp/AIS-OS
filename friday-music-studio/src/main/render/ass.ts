@@ -50,7 +50,7 @@ export function buildAss(cues: LyricCue[], branding: Branding, durationMs: numbe
   const marginV = branding.lyricPosition === 'center' ? 0 : 140;
   // 7 = top left, 3 = bottom right.
   const markAlignment = branding.watermarkPosition === 'bottom_right' ? 3 : 7;
-  const layoutOpts = { upper: branding.textCase === 'upper', scale: branding.textScale };
+  const layoutOpts = { upper: branding.textCase === 'upper', scale: branding.textScale, offsetXPx: clampPct(branding.lyricOffsetX) * (VIDEO_WIDTH / 100) };
   const header = [
     '[Script Info]',
     'ScriptType: v4.00+',
