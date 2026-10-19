@@ -19,6 +19,10 @@ export function assTime(ms: number): string {
   return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(c).padStart(2, '0')}`;
 }
 
+function clampPct(v: number | undefined): number {
+  return Number.isFinite(v) ? Math.min(45, Math.max(-45, v as number)) : 0;
+}
+
 function sanitizeFontName(name: string): string {
   const cleaned = name.replace(/[,\r\n{}\\]/g, '').trim();
   return cleaned.length > 0 ? cleaned : 'Arial';
@@ -61,6 +65,11 @@ export function buildAss(cues: LyricCue[], branding: Branding, durationMs: numbe
   if (watermark) {
     events.push(`Dialogue: 0,${assTime(0)},${assTime(durationMs)},Mark,,0,0,0,,${watermark}`);
   }
+  // Offsets are % of the frame. \pos anchors at the style's alignment (centre or bottom centre).
+  const dx = Math.round(clampPct(branding.lyricOffsetX) * (VIDEO_WIDTH / 100));
+  const dy = Math.round(clampPct(branding.lyricOffsetY) * (VIDEO_HEIGHT / 100));
+  const baseY = branding.lyricPosition === 'center' ? VIDEO_HEIGHT / 2 : VIDEO_HEIGHT - 140;
+  const pos = dx === 0 && dy === 0 ? '' : `\\pos(${VIDEO_WIDTH / 2 + dx},${baseY + dy})`;
   const sorted = [...cues].sort((a, b) => a.startMs - b.startMs);
   for (const cue of sorted) {
     if (!(cue.endMs > cue.startMs)) continue;
@@ -68,7 +77,7 @@ export function buildAss(cues: LyricCue[], branding: Branding, durationMs: numbe
     if (lines.length === 0) continue;
     const body = lines.map(sanitizeAssText).join('\\N');
     events.push(
-      `Dialogue: 1,${assTime(cue.startMs)},${assTime(Math.min(cue.endMs, durationMs))},Lyric,,0,0,0,,{\\fs${fontPx}\\blur3\\fad(${fadeMs(cue)},${fadeMs(cue)})}${body}`,
+      `Dialogue: 1,${assTime(cue.startMs)},${assTime(Math.min(cue.endMs, durationMs))},Lyric,,0,0,0,,{\\fs${fontPx}${pos}\\blur3\\fad(${fadeMs(cue)},${fadeMs(cue)})}${body}`,
     );
   }
   return [...header, ...events, ''].join('\n');

@@ -12,6 +12,8 @@ export const DEFAULT_BRANDING: Branding = {
   backgroundDim: 0.35,
   backgroundColor: '#14141c',
   lyricPosition: 'center',
+  lyricOffsetX: 0,
+  lyricOffsetY: 0,
   fontFamily: 'Arial',
 };
 

@@ -97,7 +97,7 @@ pre.exact { background: #0b0b10; border: 1px solid var(--line); border-radius: 6
 .preview .watermark { position: absolute; font-size: calc(44 / 1920 * 100cqw); font-weight: 700; color: rgba(255,255,255,.75); letter-spacing: .03em; }
 .lyric { position: absolute; left: 0; right: 0; text-align: center; color: #fff; font-weight: 700; white-space: pre; line-height: 1.2;
   text-shadow: 0 0 calc(8 / 1920 * 100cqw) rgba(0,0,0,.65), calc(3 / 1920 * 100cqw) calc(3 / 1920 * 100cqw) calc(6 / 1920 * 100cqw) rgba(0,0,0,.6); }
-.lyric.center { top: 50%; transform: translateY(-50%); }
+.lyric.center { top: 50%; }
 .lyric.lower { bottom: calc(140 / 1920 * 100cqw); }
 .transport { display: flex; gap: 10px; align-items: center; }
 .transport input[type=range] { flex: 1; }

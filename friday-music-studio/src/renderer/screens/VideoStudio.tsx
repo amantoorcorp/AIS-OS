@@ -486,6 +486,13 @@ function TimeInput({ value, onChange }: { value: number; onChange: (ms: number) 
   );
 }
 
+/** Offsets are % of the frame: X of its width, Y of its height (16:9, so 1% of height = 0.5625cqw). */
+function lyricTransform(b: Branding): string {
+  const x = b.lyricOffsetX ?? 0;
+  const y = (b.lyricOffsetY ?? 0) * 0.5625;
+  return b.lyricPosition === 'center' ? `translate(${x}cqw, calc(-50% + ${y}cqw))` : `translate(${x}cqw, ${y}cqw)`;
+}
+
 /** Same layout rules as the ASS export: 1920-wide coordinate space scaled with container units. */
 function LyricPreview({ branding, background, cue }: { branding: Branding; background: { kind: string; id: string } | null; cue: LyricCue | null }) {
   const layout = cue ? layoutCue(cue.text, { upper: branding.textCase === 'upper', scale: branding.textScale }) : null;
@@ -499,7 +506,7 @@ function LyricPreview({ branding, background, cue }: { branding: Branding; backg
       {background && <div className="dim" style={{ opacity: branding.backgroundDim }} />}
       {branding.watermarkText && <div className={`watermark ${branding.watermarkPosition}`} style={{ fontFamily: `"${branding.fontFamily}", sans-serif` }}>{branding.watermarkText}</div>}
       {layout && (
-        <div className={`lyric ${branding.lyricPosition}`} style={{ fontSize: `calc(${layout.fontPx} / 1920 * 100cqw)`, fontFamily: `"${branding.fontFamily}", sans-serif` }}>
+        <div className={`lyric ${branding.lyricPosition}`} style={{ transform: lyricTransform(branding), fontSize: `calc(${layout.fontPx} / 1920 * 100cqw)`, fontFamily: `"${branding.fontFamily}", sans-serif` }}>
           {layout.lines.map((l, i) => (
             <div key={i}>{l}</div>
           ))}

@@ -55,6 +55,31 @@ export function BrandingEditor({ value, onSave }: { value: Branding; onSave: (b:
           <option value="lower">Lower third</option>
         </select>
       </label>
+      <div className="field">
+        <span>Move lyrics (saves as you click)</span>
+        <div className="row wrap">
+          {(
+            [
+              ['◀', 'Left', 'lyricOffsetX', -2],
+              ['▶', 'Right', 'lyricOffsetX', 2],
+              ['▲', 'Up', 'lyricOffsetY', -2],
+              ['▼', 'Down', 'lyricOffsetY', 2],
+            ] as const
+          ).map(([label, title, key, step]) => (
+            <button
+              key={key + step}
+              title={`${title} 2%`}
+              onClick={() => onSave({ ...value, [key]: Math.max(-45, Math.min(45, (value[key] ?? 0) + step)) })}
+            >
+              {label}
+            </button>
+          ))}
+          <button title="Back to the middle" onClick={() => onSave({ ...value, lyricOffsetX: 0, lyricOffsetY: 0 })}>Reset</button>
+          <span className="muted small-text">
+            sideways {value.lyricOffsetX ?? 0}%, up/down {value.lyricOffsetY ?? 0}%
+          </span>
+        </div>
+      </div>
       <label className="field">
         <span>Fallback background colour</span>
         <input type="color" value={b.backgroundColor} onChange={(e) => setB({ ...b, backgroundColor: e.target.value })} />

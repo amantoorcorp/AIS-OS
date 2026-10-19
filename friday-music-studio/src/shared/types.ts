@@ -49,6 +49,10 @@ export interface Branding {
   /** Used when no background asset is chosen. */
   backgroundColor: string;
   lyricPosition: LyricPosition;
+  /** Moves the lyrics sideways, as a % of frame width (-45 left .. 45 right). */
+  lyricOffsetX: number;
+  /** Moves the lyrics up or down, as a % of frame height (-45 up .. 45 down). */
+  lyricOffsetY: number;
   fontFamily: string;
 }
 

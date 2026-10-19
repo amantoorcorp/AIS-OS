@@ -42,4 +42,15 @@ describe('ass', () => {
     expect(ass).toContain('{\\fs126');
     expect(ass).toMatch(/Style: Mark,[^\n]*,3,60,60,50,1/);
   });
+
+  it('moves lyrics sideways and up/down by % of the frame with \\pos, and leaves them alone at zero', () => {
+    const cue = [{ id: '1', startMs: 0, endMs: 3000, text: 'move me' }];
+    expect(buildAss(cue, { ...DEFAULT_BRANDING }, 5000)).not.toContain('\\pos');
+    // Centre anchor (960,540): 20% right = +384px, 10% down = +108px.
+    expect(buildAss(cue, { ...DEFAULT_BRANDING, lyricOffsetX: 20, lyricOffsetY: 10 }, 5000)).toContain('\\pos(1344,648)');
+    // Lower anchor is 140px above the bottom edge; 10% left = -192px.
+    expect(buildAss(cue, { ...DEFAULT_BRANDING, lyricPosition: 'lower', lyricOffsetX: -10 }, 5000)).toContain('\\pos(768,940)');
+    // Out-of-range values are clamped to 45%.
+    expect(buildAss(cue, { ...DEFAULT_BRANDING, lyricOffsetX: 99 }, 5000)).toContain('\\pos(1824,540)');
+  });
 });
