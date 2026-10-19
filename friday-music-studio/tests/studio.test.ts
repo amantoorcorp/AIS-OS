@@ -25,6 +25,8 @@ beforeAll(async () => {
   execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=s=640x360:r=25', '-t', '2', '-pix_fmt', 'yuv420p', path.join(fixtures, 'bg.mp4')]);
   execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=s=1200x800', '-frames:v', '1', path.join(fixtures, 'photo32.png')]);
   store = new Store(path.join(root, 'data', 'friday.sqlite'));
+  // Never let tests write into the real ~/Movies library folder.
+  store.setSettings({ libraryDir: path.join(root, 'library') });
   studio = new StudioService(store, path.join(root, 'data'), path.resolve(__dirname, '../src/renderer/public'));
 });
 
@@ -281,7 +283,6 @@ describe('generation approval (mock provider)', () => {
     studio.updateProject(p.id, { lyrics: 'first line\nsecond line' });
     studio.saveCues(p.id, [{ id: '77777777-7777-4777-8777-777777777777', startMs: 200, endMs: 2000, text: 'first line' }]);
     const lib = path.join(root, 'library');
-    store.setSettings({ libraryDir: lib });
     const { output } = await renderProject(p.id); // finishRender mirrors by itself
     const dir = path.join(lib, 'Library Song');
     const names = readdirSync(dir);
@@ -295,7 +296,6 @@ describe('generation approval (mock provider)', () => {
     expect(statSync(path.join(dir, mp4)).ino).toBe(statSync(stored).ino);
     // Running again changes nothing.
     expect((await studio.syncLibrary(p.id)).videos).toBe(0);
-    store.setSettings({ libraryDir: null });
   });
 
   it('writes standard SRT subtitles', () => {

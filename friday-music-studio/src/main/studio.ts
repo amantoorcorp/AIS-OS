@@ -570,7 +570,11 @@ export class StudioService {
         const pad = (n: number) => String(n).padStart(2, '0');
         const when = `${stamp.getFullYear()}-${pad(stamp.getMonth() + 1)}-${pad(stamp.getDate())} ${pad(stamp.getHours())}${pad(stamp.getMinutes())}`;
         const dest = path.join(dir, `${safeTitle} - ${res} - ${when}.mp4`);
-        if (await linkOrCopy(this.assertInsideData(full.storedPath), dest)) videos++;
+        try {
+          if (await linkOrCopy(this.assertInsideData(full.storedPath), dest)) videos++;
+        } catch {
+          // A missing or unreadable file must not stop the rest of the Library from syncing.
+        }
       }
 
       await fs.writeFile(path.join(dir, 'lyrics.txt'), `${project.lyrics.trim()}\n`, 'utf8');
@@ -581,7 +585,7 @@ export class StudioService {
         const a = this.store.getAssetPath(assetId);
         if (!a) continue;
         const name = path.basename(a.asset.originalName).replace(/[^A-Za-z0-9 ._()-]+/g, '_') || `${assetId}${path.extname(a.storedPath)}`;
-        await linkOrCopy(this.assertInsideData(a.storedPath), path.join(dir, 'source', name));
+        await linkOrCopy(this.assertInsideData(a.storedPath), path.join(dir, 'source', name)).catch(() => undefined);
       }
     }
     return { dir: root, videos };
