@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { alignLyrics, cuesFromAlignment, similarity, wordsOf, type HeardWord } from '../src/shared/align';
 import { parseWhisperWords } from '../src/main/transcribe';
+import { autoTimeLines } from '../src/main/autotime';
+import type { Ears } from '../src/main/transcribe';
 
 const w = (text: string, startMs: number, endMs: number, prob?: number): HeardWord => ({ text, startMs, endMs, ...(prob !== undefined ? { prob } : {}) });
 
@@ -74,5 +76,34 @@ describe('parseWhisperWords', () => {
       ],
     });
     expect(words).toEqual([{ text: 'Hello', startMs: 1000, endMs: 1400, prob: 0.8 }]);
+  });
+});
+
+describe('autoTimeLines', () => {
+  const lines = ['Da-da, daylight', 'Coming through the blinds', 'No more maybe', 'Give me something real'];
+  // Fake listener: hears only the last two lines, nothing at the start (quiet vocals).
+  const heardWords: HeardWord[] = [
+    w('No', 10_000, 10_200), w('more', 10_200, 10_500), w('maybe', 10_500, 11_200),
+    w('Give', 12_000, 12_300), w('me', 12_300, 12_500), w('something', 12_500, 13_000), w('real', 13_000, 13_600),
+  ];
+  const ears: Ears = {
+    hear: async (from, to, prompt) => (prompt ? [] : heardWords.filter((x) => x.startMs >= from && (to === null || x.endMs <= to))),
+    close: async () => {},
+  };
+
+  it('leaves unheard lines out by default', async () => {
+    const r = await autoTimeLines(lines, ears, 20_000);
+    expect(r.lines.map((l) => l.timed)).toEqual([false, false, true, true]);
+  });
+
+  it('can place unheard lines between their neighbours, flagged as estimated', async () => {
+    const r = await autoTimeLines(lines, ears, 20_000, { estimateMissing: true });
+    expect(r.coverage).toBeCloseTo(0.5);
+    const [a, b] = r.lines;
+    expect(a!.estimated && b!.estimated).toBe(true);
+    expect(a!.startMs).toBeGreaterThanOrEqual(0);
+    expect(a!.endMs).toBeLessThanOrEqual(b!.startMs);
+    expect(b!.endMs).toBeLessThanOrEqual(r.lines[2]!.startMs);
+    expect(r.lines[2]!.estimated).toBeUndefined();
   });
 });

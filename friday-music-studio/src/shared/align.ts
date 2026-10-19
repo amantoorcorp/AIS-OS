@@ -24,6 +24,8 @@ export interface AlignedLine {
    * Such timing is real but less certain, so the user should check it by ear.
    */
   hinted?: boolean;
+  /** True when no speech was recognised and the time was spread between its timed neighbours. */
+  estimated?: boolean;
 }
 
 export interface AlignResult {

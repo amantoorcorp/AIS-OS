@@ -149,6 +149,8 @@ export interface AutoTimeResponse {
   cues: LyricCue[];
   /** Cues recognised only with the lyrics as a hint. Real timing, but check them by ear. */
   hintedCueIds: string[];
+  /** Cues placed by estimate because nothing was heard there. Check these by ear. */
+  estimatedCueIds: string[];
   /** Lyric lines that were not heard in the audio, in song order. */
   unheardLines: string[];
   coverage: number;

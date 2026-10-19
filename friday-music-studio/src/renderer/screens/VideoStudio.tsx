@@ -17,6 +17,8 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
   const [playing, setPlaying] = useState(false);
   const [tapIndex, setTapIndex] = useState<number | null>(null);
   const [timing, setTiming] = useState(false);
+  const [estimateMissing, setEstimateMissing] = useState(true);
+  const [estimated, setEstimated] = useState<Set<string>>(new Set());
   const [hinted, setHinted] = useState<Set<string>>(new Set());
   const [autoNote, setAutoNote] = useState<{ unheard: string[]; coverage: number } | null>(null);
   const [render, setRender] = useState<RenderProgressEvent | null>(null);
@@ -320,9 +322,10 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
                 if (cues.length && !confirm('Replace the current cues with timing found from the audio? Nothing is saved until you click Save cues.')) return;
                 setTiming(true);
                 void run(async () => {
-                  const r = await api.autoTimeCues(project.id);
+                  const r = await api.autoTimeCues(project.id, estimateMissing);
                   setCues(r.cues);
                   setHinted(new Set(r.hintedCueIds));
+                  setEstimated(new Set(r.estimatedCueIds));
                   setAutoNote({ unheard: r.unheardLines, coverage: r.coverage });
                   setTapIndex(null);
                 }).finally(() => setTiming(false));
@@ -330,6 +333,9 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
             >
               {timing ? 'Listening… (about 1 to 3 min)' : 'Auto-time from audio'}
             </button>
+            <label className="muted small-text" title="Lines the computer cannot hear get placed between their neighbours, in proportion to length. Untick to leave them out.">
+              <input type="checkbox" checked={estimateMissing} onChange={(e) => setEstimateMissing(e.target.checked)} /> Place lines it cannot hear
+            </label>
             <button
               onClick={() => {
                 if (cues.length && !confirm('Replace all cues with one per lyric line? Timings will be cleared.')) return;
@@ -363,7 +369,7 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
             <div className="banner warn">
               <div>
                 Matched {Math.round(autoNote.coverage * 100)}% of your lyric lines to the audio. {hinted.size} marked "check by ear" were only
-                recognised with your lyrics as a hint: press ▶ on them to confirm.
+                recognised with your lyrics as a hint: press ▶ on them to confirm. {estimated.size > 0 && `${estimated.size} line(s) could not be heard at all and were placed by estimate between their neighbours: check them too.`}
                 {autoNote.unheard.length > 0 && ` ${autoNote.unheard.length} line(s) were not heard and were left out (the singer may skip them):`}
                 {autoNote.unheard.length > 0 && <ul>{autoNote.unheard.map((l, k) => <li key={k}>{l}</li>)}</ul>}
               </div>
@@ -412,6 +418,7 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
                     </button>
                     <button className="tiny danger" title="Delete cue" onClick={() => setCues((cs) => cs.filter((x) => x.id !== c.id))}>✕</button>
                   </div>
+                  {estimated.has(c.id) && <div className="cue-issue warning">Estimated: nothing was heard here, so this is a guess. Check by ear.</div>}
                   {hinted.has(c.id) && <div className="cue-issue warning">Check by ear: heard only with the lyrics as a hint.</div>}
                   {cueIssues.map((x, k) => (
                     <div key={k} className={`cue-issue ${x.level}`}>{x.message}</div>

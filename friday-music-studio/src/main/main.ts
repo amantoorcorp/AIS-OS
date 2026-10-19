@@ -240,7 +240,7 @@ function registerHandlers() {
 
   handle('assets:importPreset', ({ projectId, presetId }) => studio.importPreset(projectId, presetId));
 
-  handle('cues:autoTime', ({ projectId }) => studio.autoTimeCues(projectId));
+  handle('cues:autoTime', ({ projectId, estimateMissing }) => studio.autoTimeCues(projectId, estimateMissing));
   handle('cues:save', ({ projectId, cues }) => studio.saveCues(projectId, cues));
 
   handle('render:start', ({ projectId }) => {

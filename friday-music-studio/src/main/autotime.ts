@@ -19,7 +19,12 @@ export interface AutoTimeResult {
   coverage: number;
 }
 
-export async function autoTimeLines(lines: string[], ears: Ears, durationMs: number): Promise<AutoTimeResult> {
+export interface AutoTimeOptions {
+  /** Place lines nobody heard between their timed neighbours instead of dropping them. */
+  estimateMissing?: boolean;
+}
+
+export async function autoTimeLines(lines: string[], ears: Ears, durationMs: number, opts: AutoTimeOptions = {}): Promise<AutoTimeResult> {
   const first = alignLyrics(lines, await ears.hear(0, null), { audioDurationMs: durationMs });
   const out = first.lines.map((l) => ({ ...l }));
 
@@ -56,5 +61,44 @@ export async function autoTimeLines(lines: string[], ears: Ears, durationMs: num
     i = j;
   }
 
-  return { lines: out, coverage: out.length === 0 ? 0 : out.filter((l) => l.timed).length / out.length };
+  const coverage = out.length === 0 ? 0 : out.filter((l) => l.timed).length / out.length;
+  if (opts.estimateMissing) estimateMissing(out, durationMs);
+  return { lines: out, coverage };
+}
+
+const ESTIMATE_MARGIN_MS = 300;
+const ESTIMATE_GAP_MS = 150;
+const MIN_ESTIMATE_MS = 700;
+
+/**
+ * Lines the model could not hear at all. If the user knows they are sung (quiet or stylised
+ * vocals), spread each stretch of them over the gap between its timed neighbours, in
+ * proportion to line length. Flagged "estimated" so they are checked by ear.
+ */
+function estimateMissing(out: AlignedLine[], durationMs: number): void {
+  let i = 0;
+  while (i < out.length) {
+    if (out[i]!.timed) {
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j < out.length && !out[j]!.timed) j++;
+    const from = (out[i - 1] ? out[i - 1]!.endMs : 0) + (out[i - 1] ? ESTIMATE_GAP_MS : 0);
+    const to = (out[j] ? out[j]!.startMs : durationMs) - (out[j] ? ESTIMATE_GAP_MS : 0);
+    const run = out.slice(i, j);
+    if (to - from >= run.length * MIN_ESTIMATE_MS) {
+      const start = from + (out[i - 1] ? 0 : ESTIMATE_MARGIN_MS);
+      const weights = run.map((l) => Math.max(4, l.text.replace(/\s/g, '').length));
+      const total = weights.reduce((a, b) => a + b, 0);
+      const slot = (to - start) / total;
+      let at = start;
+      run.forEach((l, k) => {
+        const len = slot * weights[k]!;
+        out[i + k] = { ...l, timed: true, estimated: true, startMs: Math.round(at), endMs: Math.round(at + len - ESTIMATE_GAP_MS) };
+        at += len;
+      });
+    }
+    i = j;
+  }
 }

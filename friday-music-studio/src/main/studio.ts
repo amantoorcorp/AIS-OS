@@ -219,7 +219,7 @@ export class StudioService {
    * Hears the chosen audio locally (whisper.cpp) and matches the project's lyrics to it,
    * so each line gets the time it is actually sung. Returns a proposal; nothing is saved.
    */
-  async autoTimeCues(projectId: string): Promise<AutoTimeResponse> {
+  async autoTimeCues(projectId: string, estimateMissing: boolean): Promise<AutoTimeResponse> {
     const project = this.requireProject(projectId);
     if (!project.chosenAudioAssetId) throw new Error('Choose or import an audio track first.');
     const audio = this.requireAsset(projectId, project.chosenAudioAssetId, ['audio']);
@@ -236,12 +236,14 @@ export class StudioService {
 
     const ears = await openEars(audio.storedPath, { ffmpegPath: this.ffmpegPath(), whisperPath, modelPath });
     try {
-      const result = await autoTimeLines(lines, ears, durationMs);
+      const result = await autoTimeLines(lines, ears, durationMs, { estimateMissing });
       const cues = cuesFromAlignment(result, () => randomUUID());
-      const hinted = new Set(result.lines.filter((l) => l.timed && l.hinted).map((l) => l.text));
+      // cuesFromAlignment keeps the timed lines in order, so cue k belongs to the k-th timed line.
+      const timed = result.lines.filter((l) => l.timed && l.endMs > l.startMs);
       return {
         cues,
-        hintedCueIds: cues.filter((c) => hinted.has(c.text)).map((c) => c.id),
+        hintedCueIds: cues.filter((_, k) => timed[k]?.hinted && !timed[k]?.estimated).map((c) => c.id),
+        estimatedCueIds: cues.filter((_, k) => timed[k]?.estimated).map((c) => c.id),
         unheardLines: result.lines.filter((l) => !l.timed).map((l) => l.text),
         coverage: result.coverage,
       };

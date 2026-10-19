@@ -49,7 +49,7 @@ export const channels = {
   'projects:archive': z.strictObject({ projectId: id }),
   'assets:import': z.strictObject({ projectId: id, kind: z.enum(['audio', 'image', 'video']) }),
   'assets:importPreset': z.strictObject({ projectId: id, presetId: z.enum(['sunset', 'dusk', 'golden', 'night']) }),
-  'cues:autoTime': z.strictObject({ projectId: id }),
+  'cues:autoTime': z.strictObject({ projectId: id, estimateMissing: z.boolean() }),
   'cues:save': z.strictObject({ projectId: id, cues: z.array(CueSchema).max(2000) }),
   'render:start': z.strictObject({ projectId: id }),
   'render:cancel': z.strictObject({ jobId: id }),
