@@ -5,7 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Store } from '../src/main/db';
-import { buildFfmpegArgs, checkFfmpeg, probeMedia, runRender, synthesizeTone, RenderCancelledError } from '../src/main/render/ffmpeg';
+import { checkColour } from '../src/main/render/quality';
+import { buildFfmpegArgs, checkFfmpeg, encoderTuning, probeMedia, runRender, synthesizeTone, RenderCancelledError } from '../src/main/render/ffmpeg';
 import { StudioService } from '../src/main/studio';
 import { skyLyricBranding } from '../src/shared/defaults';
 
@@ -235,6 +236,9 @@ describe('generation approval (mock provider)', () => {
     const result = await runRender(spec, () => {}, new AbortController().signal);
     const output = await studio.finishRender(job.id, result);
     expect(output.probe).toMatchObject({ width: 3840, height: 2160, videoCodec: 'h264' });
+    expect(output.probe?.check).toMatchObject({ tagsOk: true });
+    expect(output.probe?.check?.psnrDb ?? 0).toBeGreaterThan(30); // synthetic test pattern; real pictures score 40+
+    expect(output.probe?.check?.verdict).not.toBe('not_measured');
     const tags = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=color_space,color_primaries,color_transfer,color_range', '-of', 'csv=p=0', spec.outputPath]).toString().trim();
     expect(tags).toBe('tv,bt709,iec61966-2-1,bt709'); // range, matrix, transfer (sRGB), primaries 
     expect(studio.getDetail(p.id).jobs.find((j) => j.id === job.id)?.status).toBe('succeeded');
@@ -253,5 +257,19 @@ describe('generation approval (mock provider)', () => {
     store.setSettings({ ffmpegPath: '/custom/ffmpeg' });
     expect(studio.ffmpegPath()).toBe('/custom/ffmpeg');
     store.setSettings({ ffmpegPath: null });
+  });
+
+  it('encodes 4K slower and cleaner than 1080p', () => {
+    expect(encoderTuning(2160, 'image')).toEqual(['-preset', 'slow', '-crf', '16', '-tune', 'stillimage']);
+    expect(encoderTuning(1080, 'image')).toEqual(['-preset', 'medium', '-crf', '18', '-tune', 'stillimage']);
+    expect(encoderTuning(2160, 'video')).not.toContain('-tune');
+  });
+
+  it('flags a file tagged the old way (BT.709 curve) that made skin look pale', async () => {
+    const bad = path.join(fixtures, 'bad-tags.mp4');
+    execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', path.join(fixtures, 'bg.mp4'), '-c:v', 'libx264', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv', '-t', '1', bad]);
+    const spec = { ffmpegPath: 'ffmpeg', ffprobePath: 'ffprobe', workDir: path.join(root, 'qwork'), outputPath: bad, audioPath: path.join(fixtures, 'song.mp3'), durationSec: 1, background: { kind: 'color' as const, color: '#202020' }, backgroundDim: 0, backgroundMotion: 'none' as const, assContent: '', fontsDir: null };
+    const check = await checkColour(spec, bad);
+    expect(check.tagsOk).toBe(false);
   });
 });

@@ -5,6 +5,7 @@ import { spawn, execFile } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { RenderProbe, ToolStatus } from '../../shared/types';
+import { checkColour } from './quality';
 
 export interface RenderSpec {
   ffmpegPath: string;
@@ -44,22 +45,25 @@ export class RenderCancelledError extends Error {
 
 const FPS = 30;
 
-export function buildFfmpegArgs(spec: RenderSpec, partialPath: string): string[] {
-  const args = ['-hide_banner', '-nostdin', '-y'];
+/** Input options for the background (everything before the audio input). */
+export function backgroundInput(spec: RenderSpec): string[] {
   const W = spec.width ?? 1920;
   const H = spec.height ?? 1080;
   const bg = spec.background;
   if (bg.kind === 'color') {
     const hex = bg.color.replace('#', '');
     if (!/^[0-9a-fA-F]{6}$/.test(hex)) throw new Error('Invalid background colour');
-    args.push('-f', 'lavfi', '-i', `color=c=0x${hex}:s=${W}x${H}:r=${FPS}`);
-  } else if (bg.kind === 'image') {
-    args.push('-loop', '1', '-framerate', String(FPS), '-i', bg.path);
-  } else {
-    args.push('-stream_loop', '-1', '-i', bg.path);
+    return ['-f', 'lavfi', '-i', `color=c=0x${hex}:s=${W}x${H}:r=${FPS}`];
   }
-  args.push('-i', spec.audioPath);
+  if (bg.kind === 'image') return ['-loop', '1', '-framerate', String(FPS), '-i', bg.path];
+  return ['-stream_loop', '-1', '-i', bg.path];
+}
 
+/** Picture geometry, motion and dim: everything that decides what the background looks like, before lyrics and colour encoding. */
+export function backgroundFilters(spec: RenderSpec): string[] {
+  const W = spec.width ?? 1920;
+  const H = spec.height ?? 1080;
+  const bg = spec.background;
   const dim = Math.min(0.8, Math.max(0, spec.backgroundDim));
   const drift = bg.kind === 'image' && spec.backgroundMotion === 'drift' && spec.backgroundFit !== 'whole';
   // A picture that is already 16:9 (within 1%) needs no letterbox, and the extra layer would only soften it.
@@ -68,7 +72,7 @@ export function buildFfmpegArgs(spec: RenderSpec, partialPath: string): string[]
   const filters = drift
     ? [
         // Overscan 15%, then slide the 1080p window across it on a 90s sine.
-        `scale=${Math.round(W * 1.15)}:${Math.round(H * 1.15)}:force_original_aspect_ratio=increase`,
+        `scale=${Math.round(W * 1.15)}:${Math.round(H * 1.15)}:force_original_aspect_ratio=increase:flags=lanczos`,
         `crop=${Math.round(W * 1.15)}:${Math.round(H * 1.15)}`,
         `crop=${W}:${H}:x='(iw-ow)/2*(1+sin(2*PI*t/90))':y='(ih-oh)/2*(1+0.5*sin(2*PI*t/70))'`,
         'setsar=1',
@@ -77,12 +81,29 @@ export function buildFfmpegArgs(spec: RenderSpec, partialPath: string): string[]
     : whole
       ? [
           // Whole picture centred; a cheap blurred, cropped copy fills the bars.
-          `split=2[a][b];[a]scale=480:270:force_original_aspect_ratio=increase,crop=480:270,boxblur=8:2,scale=${W}:${H}[bg];[b]scale=${W}:${H}:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2`,
+          `split=2[a][b];[a]scale=480:270:force_original_aspect_ratio=increase,crop=480:270,boxblur=8:2,scale=${W}:${H}[bg];[b]scale=${W}:${H}:force_original_aspect_ratio=decrease:flags=lanczos[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2`,
           'setsar=1',
           `fps=${FPS}`,
         ]
-      : [`scale=${W}:${H}:force_original_aspect_ratio=increase`, `crop=${W}:${H}`, 'setsar=1', `fps=${FPS}`];
+      : [`scale=${W}:${H}:force_original_aspect_ratio=increase:flags=lanczos`, `crop=${W}:${H}`, 'setsar=1', `fps=${FPS}`];
   if (dim > 0) filters.push(`drawbox=x=0:y=0:w=iw:h=ih:color=black@${dim.toFixed(2)}:t=fill`);
+  return filters;
+}
+
+/**
+ * 4K gets a slower, higher-quality encode (YouTube re-encodes everything, so a clean source matters).
+ * Stills with lyrics suit -tune stillimage. 1080p keeps a fast preset.
+ */
+export function encoderTuning(height: number, backgroundKind: 'image' | 'video' | 'color'): string[] {
+  const fourK = height >= 2160;
+  const tune = backgroundKind === 'video' ? [] : ['-tune', 'stillimage'];
+  return fourK ? ['-preset', 'slow', '-crf', '16', ...tune] : ['-preset', 'medium', '-crf', '18', ...tune];
+}
+
+export function buildFfmpegArgs(spec: RenderSpec, partialPath: string): string[] {
+  const args = ['-hide_banner', '-nostdin', '-y', ...backgroundInput(spec), '-i', spec.audioPath];
+  const H = spec.height ?? 1080;
+  const filters = backgroundFilters(spec);
   // Relative filename: avoids filter-graph escaping of absolute paths. cwd = workDir.
   filters.push(
     spec.fontsDir ? 'subtitles=filename=lyrics.ass:fontsdir=fonts' : 'subtitles=filename=lyrics.ass',
@@ -104,8 +125,7 @@ export function buildFfmpegArgs(spec: RenderSpec, partialPath: string): string[]
     '-color_primaries', 'bt709',
     '-color_trc', 'iec61966-2-1',
     '-color_range', 'tv',
-    '-preset', 'medium',
-    '-crf', '20',
+    ...encoderTuning(H, spec.background.kind),
     '-r', String(FPS),
     '-c:a', 'aac',
     '-b:a', '192k',
@@ -173,6 +193,7 @@ export async function runRender(
 
     const probe = await probeMedia(spec.ffprobePath, partialPath);
     verifyRender(probe, spec.durationSec, spec.width ?? 1920, spec.height ?? 1080);
+    const check = await checkColour(spec, partialPath);
     await fs.rename(partialPath, spec.outputPath);
     const stat = await fs.stat(spec.outputPath);
     onProgress(1);
@@ -185,6 +206,7 @@ export async function runRender(
         videoCodec: probe.videoCodec ?? 'unknown',
         audioCodec: probe.audioCodec,
         durationSec: probe.durationSec ?? 0,
+        check,
       },
     };
   } finally {

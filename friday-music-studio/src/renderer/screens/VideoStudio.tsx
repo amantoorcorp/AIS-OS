@@ -308,7 +308,15 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
               {detail!.renders.map((r) => (
                 <li key={r.id}>
                   {r.verified ? <Badge tone="ok">verified</Badge> : <Badge tone="bad">unverified</Badge>} {r.fileName}
-                  <span className="muted"> {fmtBytes(r.sizeBytes)} · {r.probe?.durationSec.toFixed(1)}s · {fmtDate(r.createdAt)}</span>
+                  <span className="muted"> {fmtBytes(r.sizeBytes)} · {r.probe?.width}×{r.probe?.height} · {r.probe?.durationSec.toFixed(1)}s · {fmtDate(r.createdAt)}</span>
+                  {r.probe?.check && (
+                    <span title={r.probe.check.note}>
+                      {' '}
+                      <Badge tone={r.probe.check.verdict === 'warning' ? 'warn' : r.probe.check.verdict === 'not_measured' ? 'muted' : 'ok'}>
+                        {r.probe.check.psnrDb != null ? `colour ${r.probe.check.verdict} · ${r.probe.check.psnrDb} dB` : 'colour not measured'}
+                      </Badge>
+                    </span>
+                  )}
                   <span className="row">
                     <button className="small" onClick={() => run(() => api.saveRenderCopy(r.id))}>Save copy…</button>
                     <button className="small" onClick={() => run(() => api.revealRender(r.id))}>Show file</button>

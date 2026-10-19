@@ -50,7 +50,9 @@ Security choices:
 - **FFmpeg + ASS subtitles** does exactly this job (static or looping background, timed text, H.264/AAC MP4) with one process and no browser. The preview and the export share `layoutCue()`, so the text sizing matches.
 - **Remotion** would allow richer animation, but it bundles a headless Chromium render pipeline and **needs a paid company licence for for-profit organisations above its free-tier size**. Check remotion.dev/license before adopting it. Not needed for Phase 1.
 
-Every export is checked with ffprobe after encoding: H.264, 1920×1080, an audio stream, and a duration within 0.75s of the audio. Anything else is marked failed. ffmpeg writes to `*.partial` and only renames the file once it passes, so a cancelled or crashed render never leaves a file that looks finished.
+Every export is checked with ffprobe after encoding. A colour check also runs: it renders a 1-second lyric-free clip with the same filters, decodes it like a player and compares it with the picture (PSNR in dB; 40+ excellent, 37+ good, below that a warning), and confirms the file carries the BT.709 / sRGB colour tags. 4K uses a slower, cleaner encode (CRF 16, preset slow).
+
+Checks on the file itself: H.264, 1920×1080, an audio stream, and a duration within 0.75s of the audio. Anything else is marked failed. ffmpeg writes to `*.partial` and only renames the file once it passes, so a cancelled or crashed render never leaves a file that looks finished.
 
 ### Jobs and recovery
 

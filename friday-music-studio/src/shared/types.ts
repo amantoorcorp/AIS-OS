@@ -132,7 +132,18 @@ export interface RenderOutput {
 
 export type RenderQuality = '1080p' | '4k';
 
+/** Automatic check run after every export so colour problems are caught without eyeballing. */
+export interface QualityCheck {
+  /** The file is tagged as BT.709 matrix, sRGB transfer, BT.709 primaries, limited range. */
+  tagsOk: boolean;
+  /** Picture fidelity of the export pipeline against the source picture, in dB (higher is better). Null when not measurable. */
+  psnrDb: number | null;
+  verdict: 'excellent' | 'good' | 'warning' | 'not_measured';
+  note: string;
+}
+
 export interface RenderProbe {
+  check?: QualityCheck;
   width: number;
   height: number;
   videoCodec: string;
