@@ -278,10 +278,12 @@ export class StudioService {
     const active = this.store.listJobs(projectId, 50).find((j) => j.type === 'render' && (j.status === 'running' || j.status === 'queued'));
     if (active) throw new Error('A render for this project is already running.');
 
+    let backgroundSize: { width: number; height: number } | null = null;
     let background: RenderSpec['background'] = { kind: 'color', color: project.branding.backgroundColor };
     if (project.backgroundAssetId) {
       const bg = this.requireAsset(projectId, project.backgroundAssetId, ['image', 'video']);
       background = { kind: bg.asset.kind as 'image' | 'video', path: bg.storedPath };
+      if (bg.asset.width && bg.asset.height) backgroundSize = { width: bg.asset.width, height: bg.asset.height };
     }
 
     const job = this.store.createJob('render', projectId, { audioAssetId: audio.asset.id, backgroundAssetId: project.backgroundAssetId, cueCount: cues.length, quality });
@@ -299,6 +301,7 @@ export class StudioService {
       backgroundDim: project.backgroundAssetId ? project.branding.backgroundDim : 0,
       backgroundMotion: project.branding.backgroundMotion,
       backgroundFit: project.branding.backgroundFit,
+      backgroundSize: backgroundSize ?? undefined,
       assContent: buildAss(cues, project.branding, durationSec * 1000),
       fontsDir: path.join(this.bundledDir, 'fonts'),
     };

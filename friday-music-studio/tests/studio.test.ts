@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Store } from '../src/main/db';
-import { probeMedia, runRender, synthesizeTone, RenderCancelledError } from '../src/main/render/ffmpeg';
+import { buildFfmpegArgs, probeMedia, runRender, synthesizeTone, RenderCancelledError } from '../src/main/render/ffmpeg';
 import { StudioService } from '../src/main/studio';
 import { skyLyricBranding } from '../src/shared/defaults';
 
@@ -238,5 +238,12 @@ describe('generation approval (mock provider)', () => {
     const tags = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=color_space,color_primaries,color_transfer,color_range', '-of', 'csv=p=0', spec.outputPath]).toString().trim();
     expect(tags).toBe('tv,bt709,iec61966-2-1,bt709'); // range, matrix, transfer (sRGB), primaries 
     expect(studio.getDetail(p.id).jobs.find((j) => j.id === job.id)?.status).toBe('succeeded');
+  });
+
+  it('skips the blur layer for a 16:9 picture but keeps it for a 3:2 one', () => {
+    const base = { ffmpegPath: 'ffmpeg', ffprobePath: 'ffprobe', workDir: '/tmp/w', outputPath: '/tmp/o.mp4', audioPath: '/tmp/a.wav', durationSec: 1, background: { kind: 'image' as const, path: '/tmp/i.png' }, backgroundDim: 0, backgroundMotion: 'none' as const, backgroundFit: 'whole' as const, assContent: '', fontsDir: null };
+    const graph = (size: { width: number; height: number }) => buildFfmpegArgs({ ...base, backgroundSize: size }, '/tmp/o.partial').join(' ');
+    expect(graph({ width: 1672, height: 941 })).not.toContain('boxblur');
+    expect(graph({ width: 4256, height: 2832 })).toContain('boxblur');
   });
 });

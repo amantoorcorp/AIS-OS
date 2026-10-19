@@ -52,7 +52,8 @@ export function skyLyricBranding(current: Branding): Branding {
     textScale: 1.5,
     lyricPosition: 'center',
     watermarkPosition: 'bottom_right',
-    backgroundDim: 0.1,
+    // No dim: the picture must export exactly as it looks. The lyric outline keeps text readable.
+    backgroundDim: 0,
     // Drift zooms the picture in 15% and pans it, which crops user pictures. Opt in from Branding.
     backgroundMotion: 'none',
     backgroundFit: 'whole',

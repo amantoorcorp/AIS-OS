@@ -20,6 +20,8 @@ export interface RenderSpec {
   backgroundMotion: 'none' | 'drift';
   /** whole: letterbox the entire picture over a blurred copy instead of cropping it. Stills only. */
   backgroundFit?: 'fill' | 'whole';
+  /** Pixel size of a still-image background, so a 16:9 picture skips the blur layer. */
+  backgroundSize?: { width: number; height: number };
   /** Output size; defaults to 1920x1080. Lyrics are laid out at 1080p and scaled by libass. */
   width?: number;
   height?: number;
@@ -60,7 +62,9 @@ export function buildFfmpegArgs(spec: RenderSpec, partialPath: string): string[]
 
   const dim = Math.min(0.8, Math.max(0, spec.backgroundDim));
   const drift = bg.kind === 'image' && spec.backgroundMotion === 'drift' && spec.backgroundFit !== 'whole';
-  const whole = bg.kind === 'image' && spec.backgroundFit === 'whole';
+  // A picture that is already 16:9 (within 1%) needs no letterbox, and the extra layer would only soften it.
+  const sameShape = !!spec.backgroundSize && Math.abs(spec.backgroundSize.width / spec.backgroundSize.height / (W / H) - 1) < 0.01;
+  const whole = bg.kind === 'image' && spec.backgroundFit === 'whole' && !sameShape;
   const filters = drift
     ? [
         // Overscan 15%, then slide the 1080p window across it on a 90s sine.
