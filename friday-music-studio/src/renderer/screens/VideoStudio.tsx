@@ -16,6 +16,7 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
   const [nowMs, setNowMs] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [tapIndex, setTapIndex] = useState<number | null>(null);
+  const [timing, setTiming] = useState(false);
   const [hinted, setHinted] = useState<Set<string>>(new Set());
   const [autoNote, setAutoNote] = useState<{ unheard: string[]; coverage: number } | null>(null);
   const [render, setRender] = useState<RenderProgressEvent | null>(null);
@@ -313,20 +314,21 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
           <div className="row wrap">
             <button
               className="primary"
-              disabled={busy || !audio || !project.lyrics.trim()}
+              disabled={busy || timing || !audio || !project.lyrics.trim()}
               title="Listens to the song on this Mac and sets each lyric line to when it is sung"
               onClick={() => {
                 if (cues.length && !confirm('Replace the current cues with timing found from the audio? Nothing is saved until you click Save cues.')) return;
+                setTiming(true);
                 void run(async () => {
                   const r = await api.autoTimeCues(project.id);
                   setCues(r.cues);
                   setHinted(new Set(r.hintedCueIds));
                   setAutoNote({ unheard: r.unheardLines, coverage: r.coverage });
                   setTapIndex(null);
-                });
+                }).finally(() => setTiming(false));
               }}
             >
-              {busy ? 'Listening… (about 1 to 3 min)' : 'Auto-time from audio'}
+              {timing ? 'Listening… (about 1 to 3 min)' : 'Auto-time from audio'}
             </button>
             <button
               onClick={() => {
