@@ -28,7 +28,9 @@ import { MockProvider } from './providers/mock';
 import { SunoProvider } from './providers/suno';
 import { ProviderNotConfiguredError, type MusicProvider } from './providers/types';
 import { redactError } from './redact';
-import { autoTimeLines } from './autotime';
+import { autoTimeFromEmbedded, autoTimeLines } from './autotime';
+import { readEmbeddedLyrics } from './embedded';
+import { matchEmbedded } from '../shared/embedded';
 import { findModel, findWhisperCli, openEars } from './transcribe';
 
 const EXT: Record<AssetKind, Record<string, string>> = {
@@ -228,15 +230,22 @@ export class StudioService {
     const lines = cuesFromLyrics(project.lyrics, () => '').map((c) => c.text);
     if (lines.length === 0) throw new Error('Add lyrics to the project first.');
 
-    const whisperPath = await findWhisperCli();
-    if (!whisperPath) throw new Error('Auto timing needs whisper.cpp. In Terminal run: brew install whisper-cpp');
-    const modelsDir = path.join(this.dataDir, 'models');
-    const modelPath = await findModel(modelsDir);
-    if (!modelPath) throw new Error(`Auto timing needs a speech model. Put ggml-small.en.bin in: ${modelsDir}`);
+    // Suno writes timed lyrics into its audio files. Prefer them; the speech model only refines.
+    const embedded = await readEmbeddedLyrics(this.ffmpegPath(), audio.storedPath);
+    const windows = embedded.length ? matchEmbedded(lines, embedded) : [];
+    const useEmbedded = windows.filter(Boolean).length >= Math.ceil(lines.length * 0.6);
 
-    const ears = await openEars(audio.storedPath, { ffmpegPath: this.ffmpegPath(), whisperPath, modelPath });
+    const whisperPath = await findWhisperCli();
+    const modelPath = await findModel(path.join(this.dataDir, 'models'));
+    if (!useEmbedded) {
+      if (!whisperPath) throw new Error('Auto timing needs whisper.cpp. In Terminal run: brew install whisper-cpp');
+      if (!modelPath) throw new Error(`Auto timing needs a speech model. Put ggml-small.en.bin in: ${path.join(this.dataDir, 'models')}`);
+    }
+    const ears = whisperPath && modelPath ? await openEars(audio.storedPath, { ffmpegPath: this.ffmpegPath(), whisperPath, modelPath }) : null;
     try {
-      const result = await autoTimeLines(lines, ears, durationMs, { estimateMissing });
+      const result = useEmbedded
+        ? await autoTimeFromEmbedded(lines, windows, ears, durationMs)
+        : await autoTimeLines(lines, ears!, durationMs, { estimateMissing });
       const cues = cuesFromAlignment(result, () => randomUUID());
       // cuesFromAlignment keeps the timed lines in order, so cue k belongs to the k-th timed line.
       const timed = result.lines.filter((l) => l.timed && l.endMs > l.startMs);
@@ -246,9 +255,10 @@ export class StudioService {
         estimatedCueIds: cues.filter((_, k) => timed[k]?.estimated).map((c) => c.id),
         unheardLines: result.lines.filter((l) => !l.timed).map((l) => l.text),
         coverage: result.coverage,
+        source: useEmbedded ? 'suno_embedded' : 'speech',
       };
     } finally {
-      await ears.close();
+      await ears?.close();
     }
   }
 

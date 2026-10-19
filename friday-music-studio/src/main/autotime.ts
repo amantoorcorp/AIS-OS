@@ -5,6 +5,7 @@
 // silence, so those lines are flagged "hinted" and the user checks them by ear.
 
 import { alignLyrics, type AlignedLine } from '../shared/align';
+import type { EmbeddedLine } from '../shared/embedded';
 import type { Ears } from './transcribe';
 
 /** whisper's prompt holds ~224 tokens; stay well under it. */
@@ -101,4 +102,52 @@ function estimateMissing(out: AlignedLine[], durationMs: number): void {
     }
     i = j;
   }
+}
+
+
+/**
+ * Where the singer comes in inside an embedded window, as a share of its length. Measured on a real
+ * Suno song against lines the speech model heard: median 0.25, spread 0.1 to 0.5.
+ */
+const ONSET_SHARE = 0.25;
+const END_GAP_MS = 60;
+const MAX_SHOWN_MS = 7000;
+/** A heard onset may sit this far before the embedded start (their clocks differ a little). */
+const ONSET_SLACK_MS = 800;
+const MIN_CUE_MS = 400;
+
+/**
+ * Uses the timed lyrics Suno embedded in the audio. Each entry's END is the
+ * reliable time; its START is only where the previous line ended, so the singer
+ * may come in well after it. When the speech model heard a line, its onset is
+ * used. Otherwise the onset is estimated a quarter of the way into the window,
+ * and the line is flagged as estimated.
+ */
+export async function autoTimeFromEmbedded(
+  lines: string[],
+  windows: (EmbeddedLine | null)[],
+  ears: Ears | null,
+  durationMs: number,
+): Promise<AutoTimeResult> {
+  const heard = ears ? alignLyrics(lines, await ears.hear(0, null), { audioDurationMs: durationMs }).lines : [];
+  const out: AlignedLine[] = lines.map((text, i) => {
+    const w = windows[i];
+    const h = heard[i];
+    if (!w) return h?.timed ? { ...h } : { text, timed: false, startMs: 0, endMs: 0 };
+    const modelled = w.startMs + ONSET_SHARE * (w.endMs - w.startMs);
+    const heardOk = h?.timed && h.startMs >= w.startMs - ONSET_SLACK_MS && h.startMs < w.endMs;
+    const start = heardOk ? Math.max(w.startMs, h!.startMs) : modelled;
+    const end = Math.min(w.endMs - END_GAP_MS, start + MAX_SHOWN_MS, durationMs);
+    return { text, timed: end > start, startMs: start, endMs: Math.max(end, start + 1), ...(heardOk ? {} : { estimated: true }) };
+  });
+
+  // Keep cues in order and never overlapping.
+  const timed = out.filter((l) => l.timed).sort((a, b) => a.startMs - b.startMs);
+  timed.forEach((l, k) => {
+    const next = timed[k + 1];
+    if (next && l.endMs > next.startMs - END_GAP_MS) l.endMs = Math.max(l.startMs + 1, next.startMs - END_GAP_MS);
+    if (l.endMs - l.startMs < MIN_CUE_MS && next && next.startMs - l.startMs > MIN_CUE_MS + END_GAP_MS) l.endMs = l.startMs + MIN_CUE_MS;
+  });
+  const coverage = out.length === 0 ? 0 : out.filter((l) => l.timed).length / out.length;
+  return { lines: out, coverage };
 }

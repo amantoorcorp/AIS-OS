@@ -154,6 +154,8 @@ export interface AutoTimeResponse {
   /** Lyric lines that were not heard in the audio, in song order. */
   unheardLines: string[];
   coverage: number;
+  /** suno_embedded: timed lyrics found inside the audio file. speech: heard by the local speech model. */
+  source: 'suno_embedded' | 'speech';
 }
 
 export interface ToolStatus {

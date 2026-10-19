@@ -20,7 +20,7 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
   const [estimateMissing, setEstimateMissing] = useState(true);
   const [estimated, setEstimated] = useState<Set<string>>(new Set());
   const [hinted, setHinted] = useState<Set<string>>(new Set());
-  const [autoNote, setAutoNote] = useState<{ unheard: string[]; coverage: number } | null>(null);
+  const [autoNote, setAutoNote] = useState<{ unheard: string[]; coverage: number; source: 'suno_embedded' | 'speech' } | null>(null);
   const [render, setRender] = useState<RenderProgressEvent | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const { busy, error, setError, run } = useAction();
@@ -326,7 +326,7 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
                   setCues(r.cues);
                   setHinted(new Set(r.hintedCueIds));
                   setEstimated(new Set(r.estimatedCueIds));
-                  setAutoNote({ unheard: r.unheardLines, coverage: r.coverage });
+                  setAutoNote({ unheard: r.unheardLines, coverage: r.coverage, source: r.source });
                   setTapIndex(null);
                 }).finally(() => setTiming(false));
               }}
@@ -381,9 +381,10 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
           {autoNote && (
             <div className="banner warn">
               <div>
-                Matched {Math.round(autoNote.coverage * 100)}% of your lyric lines to the audio. {hinted.size} marked "check by ear" were only
-                recognised with your lyrics as a hint: press ▶ on them to confirm. {estimated.size > 0 && `${estimated.size} line(s) could not be heard at all and were placed by estimate between their neighbours: check them too.`}
-                {autoNote.unheard.length > 0 && ` ${autoNote.unheard.length} line(s) were not heard and were left out (the singer may skip them):`}
+                {autoNote.source === 'suno_embedded'
+                  ? `Used the timed lyrics Suno saved inside your audio file for ${Math.round(autoNote.coverage * 100)}% of your lines, refined by listening. ${estimated.size} line(s) marked "estimated" have an uncertain start: press ▶ to check them, or use Shift all lyrics.`
+                  : `Matched ${Math.round(autoNote.coverage * 100)}% of your lyric lines to the audio by listening. ${hinted.size} marked "check by ear" were only recognised with your lyrics as a hint: press ▶ on them to confirm. ${estimated.size > 0 ? `${estimated.size} line(s) could not be heard at all and were placed by estimate between their neighbours: check them too.` : ''}`}
+                {autoNote.unheard.length > 0 && ` ${autoNote.unheard.length} line(s) were not found in the audio and were left out:`}
                 {autoNote.unheard.length > 0 && <ul>{autoNote.unheard.map((l, k) => <li key={k}>{l}</li>)}</ul>}
               </div>
             </div>
