@@ -432,7 +432,7 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
                     </button>
                     <button className="tiny danger" title="Delete cue" onClick={() => setCues((cs) => cs.filter((x) => x.id !== c.id))}>✕</button>
                   </div>
-                  {estimated.has(c.id) && <div className="cue-issue warning">Estimated: nothing was heard here, so this is a guess. Check by ear.</div>}
+                  {estimated.has(c.id) && <div className="cue-issue warning">Estimated start: not clearly heard, so this start time is a guess. Check by ear.</div>}
                   {hinted.has(c.id) && <div className="cue-issue warning">Check by ear: heard only with the lyrics as a hint.</div>}
                   {cueIssues.map((x, k) => (
                     <div key={k} className={`cue-issue ${x.level}`}>{x.message}</div>
