@@ -149,6 +149,21 @@ export function activeCue(cues: LyricCue[], timeMs: number): LyricCue | null {
   return null;
 }
 
+function srtTime(ms: number): string {
+  const t = Math.max(0, Math.round(ms));
+  const p = (n: number, w = 2) => String(n).padStart(w, '0');
+  return `${p(Math.floor(t / 3600000))}:${p(Math.floor((t % 3600000) / 60000))}:${p(Math.floor((t % 60000) / 1000))},${p(t % 1000, 3)}`;
+}
+
+/** Standard SubRip subtitles, so the timed lyrics can be reused (YouTube captions, other editors). */
+export function cuesToSrt(cues: LyricCue[]): string {
+  return [...cues]
+    .filter((c) => c.endMs > c.startMs && c.text.trim())
+    .sort((a, b) => a.startMs - b.startMs)
+    .map((c, i) => `${i + 1}\n${srtTime(c.startMs)} --> ${srtTime(c.endMs)}\n${splitCueLines(c.text).join('\n')}\n`)
+    .join('\n');
+}
+
 /** mm:ss.mmm */
 export function formatMs(ms: number): string {
   const safe = Math.max(0, Math.round(ms));

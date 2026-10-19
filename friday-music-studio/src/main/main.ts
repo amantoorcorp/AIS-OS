@@ -272,6 +272,22 @@ function registerHandlers() {
     return true;
   });
 
+  handle('library:get', () => ({ dir: studio.libraryDir() }));
+  handle('library:open', async () => {
+    const dir = studio.libraryDir();
+    await fs.mkdir(dir, { recursive: true });
+    const err = await shell.openPath(dir);
+    if (err) throw new Error(err);
+    return true;
+  });
+  handle('library:pick', async () => {
+    const res = await dialog.showOpenDialog(mainWindow!, { title: 'Choose the folder for finished videos', properties: ['openDirectory', 'createDirectory'] });
+    if (res.canceled || !res.filePaths[0]) return null;
+    studio.updateSettings({ libraryDir: res.filePaths[0] });
+    await studio.syncLibrary();
+    return { dir: studio.libraryDir() };
+  });
+
   handle('jobs:list', ({ projectId }) => studio.store.listJobs(projectId));
   handle('providers:list', () => studio.listProviders());
   handle('generation:prepare', ({ projectId, providerId }) => studio.prepareGeneration(projectId, providerId));
@@ -363,6 +379,7 @@ app.whenReady().then(async () => {
   // Vite copies src/renderer/public into dist/renderer, so fonts/ and backgrounds/ live there.
   studio = new StudioService(store, dataDir, path.join(__dirname, '..', 'renderer'));
   await studio.detectTools();
+  void studio.syncLibrary().catch(() => undefined);
   const recovered = await studio.recover();
   if (recovered.interrupted.length || recovered.reconcile.length)
     log('warn', `recovered jobs: ${recovered.interrupted.length} interrupted, ${recovered.reconcile.length} need reconcile`);

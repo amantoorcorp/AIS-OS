@@ -86,6 +86,9 @@ export const channels = {
   'settings:pickBinary': z.strictObject({ which: z.enum(['ffmpeg', 'ffprobe']) }),
   'settings:resetBinary': z.strictObject({ which: z.enum(['ffmpeg', 'ffprobe']) }),
   'settings:checkTools': z.undefined(),
+  'library:get': z.undefined(),
+  'library:open': z.undefined(),
+  'library:pick': z.undefined(),
   'diagnostics:export': z.undefined(),
 } as const;
 

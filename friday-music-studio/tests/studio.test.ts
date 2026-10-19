@@ -1,10 +1,11 @@
 // Integration tests against real ffmpeg/ffprobe and a real SQLite file.
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, existsSync, readdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Store } from '../src/main/db';
+import { cuesToSrt } from '../src/shared/cues';
 import { checkColour } from '../src/main/render/quality';
 import { buildFfmpegArgs, checkFfmpeg, encoderTuning, probeMedia, runRender, synthesizeTone, RenderCancelledError } from '../src/main/render/ffmpeg';
 import { StudioService } from '../src/main/studio';
@@ -271,5 +272,33 @@ describe('generation approval (mock provider)', () => {
     const spec = { ffmpegPath: 'ffmpeg', ffprobePath: 'ffprobe', workDir: path.join(root, 'qwork'), outputPath: bad, audioPath: path.join(fixtures, 'song.mp3'), durationSec: 1, background: { kind: 'color' as const, color: '#202020' }, backgroundDim: 0, backgroundMotion: 'none' as const, assContent: '', fontsDir: null };
     const check = await checkColour(spec, bad);
     expect(check.tagsOk).toBe(false);
+  });
+
+  it('mirrors videos, lyrics, subtitles and sources into one Library folder, without extra disk space', async () => {
+    const p = studio.createProject('Library Song', '');
+    await studio.importAsset(p.id, 'audio', path.join(fixtures, 'song.mp3'));
+    await studio.importAsset(p.id, 'image', path.join(fixtures, 'bg.png'));
+    studio.updateProject(p.id, { lyrics: 'first line\nsecond line' });
+    studio.saveCues(p.id, [{ id: '77777777-7777-4777-8777-777777777777', startMs: 200, endMs: 2000, text: 'first line' }]);
+    const lib = path.join(root, 'library');
+    store.setSettings({ libraryDir: lib });
+    const { output } = await renderProject(p.id); // finishRender mirrors by itself
+    const dir = path.join(lib, 'Library Song');
+    const names = readdirSync(dir);
+    const mp4 = names.find((n) => n.endsWith('.mp4'))!;
+    expect(mp4).toMatch(/^Library Song - 1080p - \d{4}-\d{2}-\d{2} \d{4}\.mp4$/);
+    expect(readFileSync(path.join(dir, 'lyrics.txt'), 'utf8')).toBe('first line\nsecond line\n');
+    expect(readFileSync(path.join(dir, 'lyrics.srt'), 'utf8')).toContain('00:00:00,200 --> 00:00:02,000\nfirst line');
+    expect(readdirSync(path.join(dir, 'source')).sort()).toEqual(['bg.png', 'song.mp3']);
+    // Hard link: same file on disk as the app's own copy, so no extra space is used.
+    const stored = studio.store.getRender(output.id)!.storedPath;
+    expect(statSync(path.join(dir, mp4)).ino).toBe(statSync(stored).ino);
+    // Running again changes nothing.
+    expect((await studio.syncLibrary(p.id)).videos).toBe(0);
+    store.setSettings({ libraryDir: null });
+  });
+
+  it('writes standard SRT subtitles', () => {
+    expect(cuesToSrt([{ id: 'a', startMs: 3_723_450, endMs: 3_725_000, text: 'two\nlines' }, { id: 'b', startMs: 0, endMs: 0, text: 'skipped' }])).toBe('1\n01:02:03,450 --> 01:02:05,000\ntwo\nlines\n');
   });
 });

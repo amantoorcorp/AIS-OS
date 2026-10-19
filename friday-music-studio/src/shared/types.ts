@@ -164,6 +164,8 @@ export interface Approval {
 export interface Settings {
   ffmpegPath: string | null;
   ffprobePath: string | null;
+  /** Folder that holds every finished video and its source files. Null = ~/Movies/Friday Music Studio. */
+  libraryDir: string | null;
   defaultTimezone: string;
   defaultArtist: string;
   /** Max provider generations allowed per rolling 24 hours (applies to every provider, mock included). */

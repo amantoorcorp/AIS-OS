@@ -47,6 +47,9 @@ const api = {
   pickBinary: (which: 'ffmpeg' | 'ffprobe') => call('settings:pickBinary', { which }),
   resetBinary: (which: 'ffmpeg' | 'ffprobe') => call('settings:resetBinary', { which }),
   checkTools: () => call('settings:checkTools'),
+  getLibrary: () => call('library:get'),
+  openLibrary: () => call('library:open'),
+  pickLibrary: () => call('library:pick'),
   exportDiagnostics: () => call('diagnostics:export'),
   onRenderProgress: (cb: (e: RenderProgressEvent) => void) => {
     const listener = (_e: IpcRendererEvent, payload: RenderProgressEvent) => cb(payload);

@@ -18,6 +18,10 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
   const [tapIndex, setTapIndex] = useState<number | null>(null);
   const [timing, setTiming] = useState(false);
   const [quality, setQuality] = useState<'1080p' | '4k'>('1080p');
+  const [libraryDir, setLibraryDir] = useState<string | null>(null);
+  useEffect(() => {
+    void api.getLibrary().then((l) => setLibraryDir(l.dir)).catch(() => undefined);
+  }, []);
   const [estimateMissing, setEstimateMissing] = useState(true);
   const [estimated, setEstimated] = useState<Set<string>>(new Set());
   const [hinted, setHinted] = useState<Set<string>>(new Set());
@@ -304,6 +308,11 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
                 {render.error && <pre className="exact">{render.error}</pre>}
               </div>
             )}
+            <div className="row wrap">
+              <span className="muted small-text">All finished videos, lyrics, subtitles, audio and pictures are saved in: <code>{libraryDir ?? '…'}</code></span>
+              <button className="small" onClick={() => run(() => api.openLibrary())}>Open folder</button>
+              <button className="small" onClick={() => run(async () => { const l = await api.pickLibrary(); if (l) setLibraryDir(l.dir); })}>Change folder…</button>
+            </div>
             <ul className="list">
               {detail!.renders.map((r) => (
                 <li key={r.id}>

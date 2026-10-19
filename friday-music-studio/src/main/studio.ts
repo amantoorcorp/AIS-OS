@@ -3,9 +3,10 @@
 
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { createReadStream, promises as fs } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { cuesFromAlignment } from '../shared/align';
-import { cuesFromLyrics, validateCues } from '../shared/cues';
+import { cuesFromLyrics, cuesToSrt, validateCues } from '../shared/cues';
 import { BACKGROUND_PRESETS, isValidTimezone, type BackgroundPresetId } from '../shared/defaults';
 import type {
   Asset,
@@ -348,6 +349,8 @@ export class StudioService {
     });
     this.store.updateJob(jobId, { status: 'succeeded', progress: 1, output: { outputId: output.id } });
     await fs.rm(path.join(this.projectDir(job.projectId), 'work', jobId), { recursive: true, force: true });
+    // A failure to mirror into the Library folder must never fail the render itself.
+    await this.syncLibrary(job.projectId).catch(() => undefined);
     return output;
   }
 
@@ -536,6 +539,54 @@ export class StudioService {
     });
   }
 
+  // ---------- library: one visible folder with everything ----------
+
+  /** The app keeps its own copy in the data folder; this mirror is what the user opens and uploads from. */
+  libraryDir(): string {
+    return this.store.getSettings().libraryDir ?? path.join(os.homedir(), 'Movies', 'Friday Music Studio');
+  }
+
+  /**
+   * Puts every finished video plus its lyrics, subtitles, audio and picture into
+   * <library>/<song title>/. Files are hard-linked when possible so nothing takes extra disk space.
+   * Safe to run again: existing files are left alone, text files are refreshed.
+   */
+  async syncLibrary(projectId?: string): Promise<{ dir: string; videos: number }> {
+    const root = path.resolve(this.libraryDir());
+    let videos = 0;
+    const projects = projectId ? [this.requireProject(projectId)] : this.store.listProjects();
+    for (const project of projects) {
+      const safeTitle = project.title.replace(/[^A-Za-z0-9 _-]+/g, '').trim().slice(0, 60) || 'lyric-video';
+      const dir = path.join(root, safeTitle);
+      const renders = this.store.listRenders(project.id);
+      if (renders.length === 0) continue;
+      await fs.mkdir(path.join(dir, 'source'), { recursive: true });
+
+      for (const r of renders) {
+        const full = this.store.getRender(r.id);
+        if (!full) continue;
+        const res = (r.probe?.height ?? 0) >= 2160 ? '4K' : (r.probe?.height ?? 0) >= 1080 ? '1080p' : `${r.probe?.height ?? '?'}p`;
+        const stamp = new Date(r.createdAt);
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const when = `${stamp.getFullYear()}-${pad(stamp.getMonth() + 1)}-${pad(stamp.getDate())} ${pad(stamp.getHours())}${pad(stamp.getMinutes())}`;
+        const dest = path.join(dir, `${safeTitle} - ${res} - ${when}.mp4`);
+        if (await linkOrCopy(this.assertInsideData(full.storedPath), dest)) videos++;
+      }
+
+      await fs.writeFile(path.join(dir, 'lyrics.txt'), `${project.lyrics.trim()}\n`, 'utf8');
+      const cues = this.store.listCues(project.id);
+      if (cues.length) await fs.writeFile(path.join(dir, 'lyrics.srt'), cuesToSrt(cues), 'utf8');
+      for (const assetId of [project.chosenAudioAssetId, project.backgroundAssetId]) {
+        if (!assetId) continue;
+        const a = this.store.getAssetPath(assetId);
+        if (!a) continue;
+        const name = path.basename(a.asset.originalName).replace(/[^A-Za-z0-9 ._()-]+/g, '_') || `${assetId}${path.extname(a.storedPath)}`;
+        await linkOrCopy(this.assertInsideData(a.storedPath), path.join(dir, 'source', name));
+      }
+    }
+    return { dir: root, videos };
+  }
+
   // ---------- settings & dashboard ----------
 
   updateSettings(patch: Partial<Settings>) {
@@ -564,4 +615,21 @@ function sha256File(file: string): Promise<string> {
       .on('end', () => resolve(h.digest('hex')))
       .on('error', reject);
   });
+}
+
+/** Hard link (no extra disk space); falls back to a copy across volumes. Returns true when a new file was made. */
+async function linkOrCopy(src: string, dest: string): Promise<boolean> {
+  try {
+    await fs.access(dest);
+    return false;
+  } catch {
+    /* does not exist yet */
+  }
+  await fs.mkdir(path.dirname(dest), { recursive: true });
+  try {
+    await fs.link(src, dest);
+  } catch {
+    await fs.copyFile(src, dest);
+  }
+  return true;
 }

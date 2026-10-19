@@ -63,6 +63,7 @@ export function skyLyricBranding(current: Branding): Branding {
 export const DEFAULT_SETTINGS: Settings = {
   ffmpegPath: null,
   ffprobePath: null,
+  libraryDir: null,
   defaultTimezone: DEFAULT_TIMEZONE,
   defaultArtist: '',
   generationLimitPer24h: 5,
