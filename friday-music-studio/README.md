@@ -6,7 +6,9 @@ Desktop app for making lyric videos from original songs and, in later phases, pu
 
 ## Run it
 
-Needs Node 22+ and FFmpeg with libass (the `subtitles` filter) on your PATH, or pick it in Settings.
+Needs Node 22+ and FFmpeg with libass (the `subtitles` filter). The app looks for Homebrew's `ffmpeg-full` by itself (`brew install ffmpeg-full`), then `ffmpeg` on PATH; a path chosen in Settings always wins.
+
+**macOS one-click launch:** run `scripts/make-desktop-launcher.sh` once. It puts "Friday Music Studio.app" on the Desktop. Double-click it to start the studio; clicking it again just brings the running app forward. Log: `~/Library/Logs/friday-music-studio-launch.log`. Re-run the script if you move the project folder.
 
 ```bash
 npm install

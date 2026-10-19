@@ -362,6 +362,7 @@ app.whenReady().then(async () => {
   const store = new Store(path.join(dataDir, 'friday.sqlite'));
   // Vite copies src/renderer/public into dist/renderer, so fonts/ and backgrounds/ live there.
   studio = new StudioService(store, dataDir, path.join(__dirname, '..', 'renderer'));
+  await studio.detectTools();
   const recovered = await studio.recover();
   if (recovered.interrupted.length || recovered.reconcile.length)
     log('warn', `recovered jobs: ${recovered.interrupted.length} interrupted, ${recovered.reconcile.length} need reconcile`);

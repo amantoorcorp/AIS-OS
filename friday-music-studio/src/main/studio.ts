@@ -71,11 +71,35 @@ export class StudioService {
 
   // ---------- paths & tools ----------
 
+  /** Found by detectTools(); a path chosen in Settings always wins over these. */
+  private foundFfmpeg: string | null = null;
+  private foundFfprobe: string | null = null;
+
   ffmpegPath(): string {
-    return this.store.getSettings().ffmpegPath ?? 'ffmpeg';
+    return this.store.getSettings().ffmpegPath ?? this.foundFfmpeg ?? 'ffmpeg';
   }
   ffprobePath(): string {
-    return this.store.getSettings().ffprobePath ?? 'ffprobe';
+    return this.store.getSettings().ffprobePath ?? this.foundFfprobe ?? 'ffprobe';
+  }
+
+  /**
+   * Picks an FFmpeg that has libass without the user setting PATH. Homebrew's plain `ffmpeg` lacks it;
+   * the keg-only `ffmpeg-full` has it but is not on PATH, so look there first. Runs once at startup.
+   */
+  async detectTools(): Promise<void> {
+    const s = this.store.getSettings();
+    if (s.ffmpegPath) return;
+    const candidates = ['/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg', '/usr/local/opt/ffmpeg-full/bin/ffmpeg', 'ffmpeg', '/opt/homebrew/bin/ffmpeg', '/usr/local/bin/ffmpeg'];
+    for (const c of candidates) {
+      if (path.isAbsolute(c) && !(await fs.access(c).then(() => true, () => false))) continue;
+      if (!(await checkFfmpeg(c)).ok) continue;
+      this.foundFfmpeg = c;
+      if (!s.ffprobePath && path.isAbsolute(c)) {
+        const probe = path.join(path.dirname(c), 'ffprobe');
+        if (await fs.access(probe).then(() => true, () => false)) this.foundFfprobe = probe;
+      }
+      return;
+    }
   }
   projectDir(projectId: string): string {
     return path.join(this.dataDir, 'projects', projectId);

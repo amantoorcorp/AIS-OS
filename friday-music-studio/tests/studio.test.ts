@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Store } from '../src/main/db';
-import { buildFfmpegArgs, probeMedia, runRender, synthesizeTone, RenderCancelledError } from '../src/main/render/ffmpeg';
+import { buildFfmpegArgs, checkFfmpeg, probeMedia, runRender, synthesizeTone, RenderCancelledError } from '../src/main/render/ffmpeg';
 import { StudioService } from '../src/main/studio';
 import { skyLyricBranding } from '../src/shared/defaults';
 
@@ -245,5 +245,13 @@ describe('generation approval (mock provider)', () => {
     const graph = (size: { width: number; height: number }) => buildFfmpegArgs({ ...base, backgroundSize: size }, '/tmp/o.partial').join(' ');
     expect(graph({ width: 1672, height: 941 })).not.toContain('boxblur');
     expect(graph({ width: 4256, height: 2832 })).toContain('boxblur');
+  });
+
+  it('finds an FFmpeg with libass by itself, and a path chosen in Settings still wins', async () => {
+    await studio.detectTools();
+    expect((await checkFfmpeg(studio.ffmpegPath())).ok).toBe(true);
+    store.setSettings({ ffmpegPath: '/custom/ffmpeg' });
+    expect(studio.ffmpegPath()).toBe('/custom/ffmpeg');
+    store.setSettings({ ffmpegPath: null });
   });
 });
