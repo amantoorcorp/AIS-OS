@@ -158,6 +158,15 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
           <LyricPreview branding={project.branding} background={background ? { kind: background.kind, id: background.id } : null} cue={current} />
           <div className="transport">
             <button onClick={togglePlay} disabled={!audio} className="primary">{playing ? 'Pause' : 'Play'}</button>
+            <button
+              title="Show the preview full screen. Press Esc to leave."
+              onClick={() => {
+                void document.getElementById('lyric-preview')?.requestFullscreen().catch(() => setError('Full screen is not available here.'));
+                if (audio && !playing) togglePlay();
+              }}
+            >
+              Full screen
+            </button>
             <span className="mono">{formatMs(nowMs)}</span>
             <input
               type="range"
@@ -483,7 +492,7 @@ function LyricPreview({ branding, background, cue }: { branding: Branding; backg
   const whole = background?.kind === 'image' && branding.backgroundFit === 'whole';
   const drift = background?.kind === 'image' && branding.backgroundMotion === 'drift' && !whole;
   return (
-    <div className="preview" style={{ background: branding.backgroundColor }}>
+    <div id="lyric-preview" className="preview" style={{ background: branding.backgroundColor }}>
       {whole && <img className="blurfill" src={assetUrl(background!.id)} alt="" />}
       {background?.kind === 'image' && <img className={`${drift ? 'drift' : ''} ${whole ? 'whole' : ''}`} src={assetUrl(background.id)} alt="" />}
       {background?.kind === 'video' && <video src={assetUrl(background.id)} muted loop autoPlay playsInline />}
