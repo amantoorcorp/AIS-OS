@@ -354,8 +354,10 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
-  session.defaultSession.setPermissionCheckHandler(() => false);
+  // Everything is denied except full screen for the app's own pages (the preview's Full screen button).
+  const isOwnPage = (url: string) => url.startsWith('fms-app://');
+  session.defaultSession.setPermissionRequestHandler((_wc, perm, cb, details) => cb(perm === 'fullscreen' && isOwnPage(details.requestingUrl)));
+  session.defaultSession.setPermissionCheckHandler((_wc, perm, origin) => perm === 'fullscreen' && isOwnPage(origin));
 
   const store = new Store(path.join(dataDir, 'friday.sqlite'));
   // Vite copies src/renderer/public into dist/renderer, so fonts/ and backgrounds/ live there.

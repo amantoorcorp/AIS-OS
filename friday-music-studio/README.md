@@ -37,7 +37,7 @@ main process ── Zod-validates every payload, checks sender origin, redacts e
 
 Security choices:
 
-- `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, `app.enableSandbox()`, no webviews, navigation and `window.open` blocked, all permission requests denied.
+- `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, `app.enableSandbox()`, no webviews, navigation and `window.open` blocked, all permission requests denied except full screen for the app's own pages (preview Full screen button).
 - The renderer never sends file paths, URLs or commands. Files come from native dialogs in main and are referenced by UUID afterwards. The FFmpeg binary is picked with a file dialog and checked before it's saved.
 - All media served to the UI must resolve inside the app data directory.
 - Errors are redacted (bearer tokens, OAuth codes and tokens, API keys, JWTs) before reaching the UI, the log file or a diagnostics export.
