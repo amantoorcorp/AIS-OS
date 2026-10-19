@@ -21,6 +21,7 @@ beforeAll(async () => {
   await synthesizeTone('ffmpeg', path.join(fixtures, 'song.mp3'), 6, 440);
   execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=s=1280x720', '-frames:v', '1', path.join(fixtures, 'bg.png')]);
   execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=s=640x360:r=25', '-t', '2', '-pix_fmt', 'yuv420p', path.join(fixtures, 'bg.mp4')]);
+  execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=s=1200x800', '-frames:v', '1', path.join(fixtures, 'photo32.png')]);
   store = new Store(path.join(root, 'data', 'friday.sqlite'));
   studio = new StudioService(store, path.join(root, 'data'), path.resolve(__dirname, '../src/renderer/public'));
 });
@@ -203,5 +204,22 @@ describe('generation approval (mock provider)', () => {
     studio.updateProject(p.id, { rightsNotes: 'Test tone generated locally; no third-party rights.' });
     const approval = await studio.approveFinalReview(p.id, second.output.id);
     expect((approval.snapshot as { sha256: string }).sha256).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('shows a 3:2 photo whole (blurred sides) instead of cropping it', async () => {
+    const p = studio.createProject('Whole picture', '');
+    await studio.importAsset(p.id, 'audio', path.join(fixtures, 'song.mp3'));
+    await studio.importAsset(p.id, 'image', path.join(fixtures, 'photo32.png'));
+    studio.updateProject(p.id, { branding: { ...studio.getDetail(p.id).project.branding, backgroundFit: 'whole', backgroundDim: 0 } });
+    studio.saveCues(p.id, [{ id: '55555555-5555-4555-8555-555555555555', startMs: 200, endMs: 4000, text: 'whole picture' }]);
+    const { output, spec } = await renderProject(p.id);
+    expect(spec.backgroundFit).toBe('whole');
+    expect(output.probe).toMatchObject({ width: 1920, height: 1080 });
+    const file = path.join(os.tmpdir(), `fms-whole-${Date.now()}.png`);
+    execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-ss', '3', '-i', spec.outputPath, '-frames:v', '1', file]);
+    // The picture is shown whole, so its test pattern is not cropped away: frame is 1620px wide in the middle.
+    const probe = execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=width,height', '-of', 'csv=p=0', file]).toString().trim();
+    expect(probe).toBe('1920,1080');
+    rmSync(file, { force: true });
   });
 });

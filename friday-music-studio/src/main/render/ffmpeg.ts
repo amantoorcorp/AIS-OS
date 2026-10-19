@@ -18,6 +18,8 @@ export interface RenderSpec {
   backgroundDim: number;
   /** Slow pan across a still image. Ignored for video and colour backgrounds. */
   backgroundMotion: 'none' | 'drift';
+  /** whole: letterbox the entire picture over a blurred copy instead of cropping it. Stills only. */
+  backgroundFit?: 'fill' | 'whole';
   assContent: string;
   /** Directory of bundled fonts for libass, or null to use system fonts only. */
   fontsDir: string | null;
@@ -52,7 +54,8 @@ export function buildFfmpegArgs(spec: RenderSpec, partialPath: string): string[]
   args.push('-i', spec.audioPath);
 
   const dim = Math.min(0.8, Math.max(0, spec.backgroundDim));
-  const drift = bg.kind === 'image' && spec.backgroundMotion === 'drift';
+  const drift = bg.kind === 'image' && spec.backgroundMotion === 'drift' && spec.backgroundFit !== 'whole';
+  const whole = bg.kind === 'image' && spec.backgroundFit === 'whole';
   const filters = drift
     ? [
         // Overscan 15%, then slide the 1080p window across it on a 90s sine.
@@ -62,7 +65,14 @@ export function buildFfmpegArgs(spec: RenderSpec, partialPath: string): string[]
         'setsar=1',
         `fps=${FPS}`,
       ]
-    : ['scale=1920:1080:force_original_aspect_ratio=increase', 'crop=1920:1080', 'setsar=1', `fps=${FPS}`];
+    : whole
+      ? [
+          // Whole picture centred; a cheap blurred, cropped copy fills the bars.
+          'split=2[a][b];[a]scale=480:270:force_original_aspect_ratio=increase,crop=480:270,boxblur=8:2,scale=1920:1080[bg];[b]scale=1920:1080:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2',
+          'setsar=1',
+          `fps=${FPS}`,
+        ]
+      : ['scale=1920:1080:force_original_aspect_ratio=increase', 'crop=1920:1080', 'setsar=1', `fps=${FPS}`];
   if (dim > 0) filters.push(`drawbox=x=0:y=0:w=iw:h=ih:color=black@${dim.toFixed(2)}:t=fill`);
   // Relative filename: avoids filter-graph escaping of absolute paths. cwd = workDir.
   filters.push(spec.fontsDir ? 'subtitles=filename=lyrics.ass:fontsdir=fonts' : 'subtitles=filename=lyrics.ass', 'format=yuv420p');

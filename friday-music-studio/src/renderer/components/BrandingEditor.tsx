@@ -38,6 +38,13 @@ export function BrandingEditor({ value, onSave }: { value: Branding; onSave: (b:
         </select>
       </label>
       <label className="field">
+        <span>Picture fit</span>
+        <select value={b.backgroundFit} onChange={(e) => setB({ ...b, backgroundFit: e.target.value as Branding['backgroundFit'] })}>
+          <option value="fill">Fill the frame (crops the edges)</option>
+          <option value="whole">Show the whole picture (as downloaded)</option>
+        </select>
+      </label>
+      <label className="field">
         <span>Background dim ({Math.round(b.backgroundDim * 100)}%)</span>
         <input type="range" min={0} max={0.8} step={0.05} value={b.backgroundDim} onChange={(e) => setB({ ...b, backgroundDim: Number(e.target.value) })} />
       </label>

@@ -8,6 +8,7 @@ export const DEFAULT_BRANDING: Branding = {
   textCase: 'as_written',
   textScale: 1,
   backgroundMotion: 'none',
+  backgroundFit: 'fill',
   backgroundDim: 0.35,
   backgroundColor: '#14141c',
   lyricPosition: 'center',

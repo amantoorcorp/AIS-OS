@@ -32,6 +32,8 @@ export type LyricPosition = 'center' | 'lower';
 export type TextCase = 'as_written' | 'upper';
 export type WatermarkPosition = 'top_left' | 'bottom_right';
 export type BackgroundMotion = 'none' | 'drift';
+/** fill: crop the picture to cover the frame. whole: show the entire picture, blurred copy behind it. */
+export type BackgroundFit = 'fill' | 'whole';
 
 export interface Branding {
   watermarkText: string;
@@ -41,6 +43,7 @@ export interface Branding {
   textScale: number;
   /** Slow pan across still-image backgrounds. */
   backgroundMotion: BackgroundMotion;
+  backgroundFit: BackgroundFit;
   /** 0..0.8 darkening applied over the background so white lyrics stay readable. */
   backgroundDim: number;
   /** Used when no background asset is chosen. */

@@ -295,6 +295,7 @@ export class StudioService {
       background,
       backgroundDim: project.backgroundAssetId ? project.branding.backgroundDim : 0,
       backgroundMotion: project.branding.backgroundMotion,
+      backgroundFit: project.branding.backgroundFit,
       assContent: buildAss(cues, project.branding, durationSec * 1000),
       fontsDir: path.join(this.bundledDir, 'fonts'),
     };
