@@ -80,13 +80,25 @@ export function buildFfmpegArgs(spec: RenderSpec, partialPath: string): string[]
       : [`scale=${W}:${H}:force_original_aspect_ratio=increase`, `crop=${W}:${H}`, 'setsar=1', `fps=${FPS}`];
   if (dim > 0) filters.push(`drawbox=x=0:y=0:w=iw:h=ih:color=black@${dim.toFixed(2)}:t=fill`);
   // Relative filename: avoids filter-graph escaping of absolute paths. cwd = workDir.
-  filters.push(spec.fontsDir ? 'subtitles=filename=lyrics.ass:fontsdir=fonts' : 'subtitles=filename=lyrics.ass', 'format=yuv420p');
+  filters.push(
+    spec.fontsDir ? 'subtitles=filename=lyrics.ass:fontsdir=fonts' : 'subtitles=filename=lyrics.ass',
+    // Pictures are full-range sRGB. Convert to HD (BT.709, limited range) explicitly and tag the file,
+    // otherwise players guess a different matrix and the colours look washed out.
+    'scale=out_color_matrix=bt709:out_range=tv',
+    'format=yuv420p',
+    // Frames carry their own colour tags; set them all so the encoder writes BT.709 everywhere.
+    'setparams=colorspace=bt709:color_primaries=bt709:color_trc=bt709:range=tv',
+  );
 
   args.push(
     '-filter_complex', `[0:v]${filters.join(',')}[v]`,
     '-map', '[v]',
     '-map', '1:a:0',
     '-c:v', 'libx264',
+    '-colorspace', 'bt709',
+    '-color_primaries', 'bt709',
+    '-color_trc', 'bt709',
+    '-color_range', 'tv',
     '-preset', 'medium',
     '-crf', '20',
     '-r', String(FPS),
