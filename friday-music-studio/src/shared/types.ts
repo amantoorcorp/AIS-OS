@@ -130,6 +130,8 @@ export interface RenderOutput {
   createdAt: string;
 }
 
+export type RenderQuality = '1080p' | '4k';
+
 export interface RenderProbe {
   width: number;
   height: number;

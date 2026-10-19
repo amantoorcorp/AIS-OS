@@ -76,7 +76,7 @@ Jobs are stored in SQLite with type `generation | download | render | upload | s
 | Validation: max 2 lines, line length, overlaps, end after start, inside audio | done | unit |
 | Preview with seeking, background, dim, watermark | done | smoke |
 | Sky Lyric style: brush capitals, size control, fades, bottom-right logo text, 4 sky presets, slow background drift | done | unit + integration + smoke |
-| 1920×1080 MP4 export: progress, cancel, error report, ffprobe check | done | integration (image, looping video, solid colour, cancel) + smoke |
+| 1080p or 4K (3840×2160) MP4 export: progress, cancel, error report, ffprobe check | done | integration (image, looping video, solid colour, cancel) + smoke |
 | Final review checklist (blocks mock audio, requires rights notes, records SHA-256) | done | integration + smoke |
 | Mock provider + approval gate + limit | done | integration |
 | Suno adapter | **not built** (no official docs or credentials) | shows "Not configured" |

@@ -223,4 +223,18 @@ describe('generation approval (mock provider)', () => {
     expect(probe).toBe('1920,1080');
     rmSync(file, { force: true });
   });
+
+  it('exports a verified 4K (3840x2160) MP4 when asked', async () => {
+    const p = studio.createProject('Four K', '');
+    await studio.importAsset(p.id, 'audio', path.join(fixtures, 'song.mp3'));
+    await studio.importAsset(p.id, 'image', path.join(fixtures, 'photo32.png'));
+    studio.updateProject(p.id, { branding: { ...studio.getDetail(p.id).project.branding, backgroundFit: 'whole' } });
+    studio.saveCues(p.id, [{ id: '66666666-6666-4666-8666-666666666666', startMs: 200, endMs: 4000, text: 'four k lyrics' }]);
+    const { job, spec } = studio.prepareRender(p.id, '4k');
+    expect(spec).toMatchObject({ width: 3840, height: 2160 });
+    const result = await runRender(spec, () => {}, new AbortController().signal);
+    const output = await studio.finishRender(job.id, result);
+    expect(output.probe).toMatchObject({ width: 3840, height: 2160, videoCodec: 'h264' });
+    expect(studio.getDetail(p.id).jobs.find((j) => j.id === job.id)?.status).toBe('succeeded');
+  });
 });

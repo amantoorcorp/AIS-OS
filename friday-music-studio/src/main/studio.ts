@@ -18,6 +18,7 @@ import type {
   Project,
   ProjectDetail,
   ProviderInfo,
+  RenderQuality,
   Settings,
   ToolStatus,
 } from '../shared/types';
@@ -265,7 +266,7 @@ export class StudioService {
   // ---------- render ----------
 
   /** Builds a render spec from stored state only; the renderer supplies nothing but a project ID. */
-  prepareRender(projectId: string): { job: Job; spec: RenderSpec } {
+  prepareRender(projectId: string, quality: RenderQuality = '1080p'): { job: Job; spec: RenderSpec } {
     const project = this.requireProject(projectId);
     if (!project.chosenAudioAssetId) throw new Error('Choose or import an audio track first.');
     const audio = this.requireAsset(projectId, project.chosenAudioAssetId, ['audio']);
@@ -283,7 +284,7 @@ export class StudioService {
       background = { kind: bg.asset.kind as 'image' | 'video', path: bg.storedPath };
     }
 
-    const job = this.store.createJob('render', projectId, { audioAssetId: audio.asset.id, backgroundAssetId: project.backgroundAssetId, cueCount: cues.length });
+    const job = this.store.createJob('render', projectId, { audioAssetId: audio.asset.id, backgroundAssetId: project.backgroundAssetId, cueCount: cues.length, quality });
     const dir = this.projectDir(projectId);
     const spec: RenderSpec = {
       ffmpegPath: this.ffmpegPath(),
@@ -292,6 +293,8 @@ export class StudioService {
       outputPath: path.join(dir, 'renders', `${job.id}.mp4`),
       audioPath: audio.storedPath,
       durationSec,
+      width: quality === '4k' ? 3840 : 1920,
+      height: quality === '4k' ? 2160 : 1080,
       background,
       backgroundDim: project.backgroundAssetId ? project.branding.backgroundDim : 0,
       backgroundMotion: project.branding.backgroundMotion,

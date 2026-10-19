@@ -20,6 +20,9 @@ export interface RenderSpec {
   backgroundMotion: 'none' | 'drift';
   /** whole: letterbox the entire picture over a blurred copy instead of cropping it. Stills only. */
   backgroundFit?: 'fill' | 'whole';
+  /** Output size; defaults to 1920x1080. Lyrics are laid out at 1080p and scaled by libass. */
+  width?: number;
+  height?: number;
   assContent: string;
   /** Directory of bundled fonts for libass, or null to use system fonts only. */
   fontsDir: string | null;
@@ -41,11 +44,13 @@ const FPS = 30;
 
 export function buildFfmpegArgs(spec: RenderSpec, partialPath: string): string[] {
   const args = ['-hide_banner', '-nostdin', '-y'];
+  const W = spec.width ?? 1920;
+  const H = spec.height ?? 1080;
   const bg = spec.background;
   if (bg.kind === 'color') {
     const hex = bg.color.replace('#', '');
     if (!/^[0-9a-fA-F]{6}$/.test(hex)) throw new Error('Invalid background colour');
-    args.push('-f', 'lavfi', '-i', `color=c=0x${hex}:s=1920x1080:r=${FPS}`);
+    args.push('-f', 'lavfi', '-i', `color=c=0x${hex}:s=${W}x${H}:r=${FPS}`);
   } else if (bg.kind === 'image') {
     args.push('-loop', '1', '-framerate', String(FPS), '-i', bg.path);
   } else {
@@ -59,20 +64,20 @@ export function buildFfmpegArgs(spec: RenderSpec, partialPath: string): string[]
   const filters = drift
     ? [
         // Overscan 15%, then slide the 1080p window across it on a 90s sine.
-        'scale=2208:1242:force_original_aspect_ratio=increase',
-        'crop=2208:1242',
-        `crop=1920:1080:x='(iw-ow)/2*(1+sin(2*PI*t/90))':y='(ih-oh)/2*(1+0.5*sin(2*PI*t/70))'`,
+        `scale=${Math.round(W * 1.15)}:${Math.round(H * 1.15)}:force_original_aspect_ratio=increase`,
+        `crop=${Math.round(W * 1.15)}:${Math.round(H * 1.15)}`,
+        `crop=${W}:${H}:x='(iw-ow)/2*(1+sin(2*PI*t/90))':y='(ih-oh)/2*(1+0.5*sin(2*PI*t/70))'`,
         'setsar=1',
         `fps=${FPS}`,
       ]
     : whole
       ? [
           // Whole picture centred; a cheap blurred, cropped copy fills the bars.
-          'split=2[a][b];[a]scale=480:270:force_original_aspect_ratio=increase,crop=480:270,boxblur=8:2,scale=1920:1080[bg];[b]scale=1920:1080:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2',
+          `split=2[a][b];[a]scale=480:270:force_original_aspect_ratio=increase,crop=480:270,boxblur=8:2,scale=${W}:${H}[bg];[b]scale=${W}:${H}:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2`,
           'setsar=1',
           `fps=${FPS}`,
         ]
-      : ['scale=1920:1080:force_original_aspect_ratio=increase', 'crop=1920:1080', 'setsar=1', `fps=${FPS}`];
+      : [`scale=${W}:${H}:force_original_aspect_ratio=increase`, `crop=${W}:${H}`, 'setsar=1', `fps=${FPS}`];
   if (dim > 0) filters.push(`drawbox=x=0:y=0:w=iw:h=ih:color=black@${dim.toFixed(2)}:t=fill`);
   // Relative filename: avoids filter-graph escaping of absolute paths. cwd = workDir.
   filters.push(spec.fontsDir ? 'subtitles=filename=lyrics.ass:fontsdir=fonts' : 'subtitles=filename=lyrics.ass', 'format=yuv420p');
@@ -150,7 +155,7 @@ export async function runRender(
     });
 
     const probe = await probeMedia(spec.ffprobePath, partialPath);
-    verifyRender(probe, spec.durationSec);
+    verifyRender(probe, spec.durationSec, spec.width ?? 1920, spec.height ?? 1080);
     await fs.rename(partialPath, spec.outputPath);
     const stat = await fs.stat(spec.outputPath);
     onProgress(1);
@@ -171,10 +176,10 @@ export async function runRender(
 }
 
 /** Throws when the output is not the MP4 we promised. */
-export function verifyRender(probe: MediaProbe, expectedDurationSec: number): void {
+export function verifyRender(probe: MediaProbe, expectedDurationSec: number, width = 1920, height = 1080): void {
   const problems: string[] = [];
   if (probe.videoCodec !== 'h264') problems.push(`video codec is ${probe.videoCodec ?? 'missing'}`);
-  if (probe.width !== 1920 || probe.height !== 1080) problems.push(`resolution is ${probe.width}x${probe.height}`);
+  if (probe.width !== width || probe.height !== height) problems.push(`resolution is ${probe.width}x${probe.height}`);
   if (!probe.audioCodec) problems.push('no audio stream');
   if (probe.durationSec == null || Math.abs(probe.durationSec - expectedDurationSec) > 0.75)
     problems.push(`duration ${probe.durationSec?.toFixed(2)}s, expected ${expectedDurationSec.toFixed(2)}s`);

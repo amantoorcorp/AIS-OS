@@ -17,6 +17,7 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
   const [playing, setPlaying] = useState(false);
   const [tapIndex, setTapIndex] = useState<number | null>(null);
   const [timing, setTiming] = useState(false);
+  const [quality, setQuality] = useState<'1080p' | '4k'>('1080p');
   const [estimateMissing, setEstimateMissing] = useState(true);
   const [estimated, setEstimated] = useState<Set<string>>(new Set());
   const [hinted, setHinted] = useState<Set<string>>(new Set());
@@ -268,14 +269,21 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
             <BrandingEditor value={project.branding} onSave={saveBranding} />
           </Section>
 
-          <Section title="Export MP4 (1920×1080)">
+          <Section title={`Export MP4 (${quality === '4k' ? '3840×2160' : '1920×1080'})`}>
             {audio?.source === 'mock_provider' && <div className="banner mock">This project uses MOCK audio. Exports are for testing only and cannot pass release review.</div>}
             <div className="row">
+              <label className="muted small-text">
+                Quality{' '}
+                <select value={quality} disabled={rendering} onChange={(e) => setQuality(e.target.value as '1080p' | '4k')}>
+                  <option value="1080p">1080p (1920×1080, fast)</option>
+                  <option value="4k">4K (3840×2160, slower, bigger file)</option>
+                </select>
+              </label>
               <button
                 className="primary"
                 disabled={busy || rendering || !audio || dirty || errorCount > 0}
                 title={dirty ? 'Save cues first' : errorCount ? 'Fix timing errors first' : undefined}
-                onClick={() => run(async () => { const r = await api.startRender(project.id); setRender({ jobId: r.jobId, projectId: project.id, status: 'running', progress: 0, error: null }); })}
+                onClick={() => run(async () => { const r = await api.startRender(project.id, quality); setRender({ jobId: r.jobId, projectId: project.id, status: 'running', progress: 0, error: null }); })}
               >
                 Export MP4
               </button>
@@ -289,7 +297,7 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
                 </div>
                 <span>
                   {render.status === 'running' && `Rendering ${Math.round(render.progress * 100)}%`}
-                  {render.status === 'succeeded' && 'Done. Output verified (1920×1080 H.264 + AAC, duration matches).'}
+                  {render.status === 'succeeded' && `Done. Output verified (${quality === '4k' ? '3840×2160' : '1920×1080'} H.264 + AAC, duration matches).`}
                   {render.status === 'cancelled' && 'Cancelled. Partial file removed.'}
                   {render.status === 'failed' && 'Failed.'}
                 </span>

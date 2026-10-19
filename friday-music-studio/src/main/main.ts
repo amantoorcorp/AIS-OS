@@ -243,8 +243,8 @@ function registerHandlers() {
   handle('cues:autoTime', ({ projectId, estimateMissing }) => studio.autoTimeCues(projectId, estimateMissing));
   handle('cues:save', ({ projectId, cues }) => studio.saveCues(projectId, cues));
 
-  handle('render:start', ({ projectId }) => {
-    const { job, spec } = studio.prepareRender(projectId);
+  handle('render:start', ({ projectId, quality }) => {
+    const { job, spec } = studio.prepareRender(projectId, quality);
     activeRenders.set(job.id, projectId);
     studio.store.updateJob(job.id, { status: 'running' });
     getWorker().postMessage({ type: 'start', jobId: job.id, spec });
