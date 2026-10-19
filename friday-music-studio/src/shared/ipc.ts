@@ -20,6 +20,10 @@ export const BrandingSchema = z.strictObject({
   lyricPosition: z.enum(['center', 'lower']),
   lyricOffsetX: z.number().min(-45).max(45),
   lyricOffsetY: z.number().min(-45).max(45),
+  lyricColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  lyricBold: z.boolean(),
+  letterSpacing: z.number().min(0).max(20),
+  lyricOutline: z.number().min(0).max(12),
   fontFamily: z.string().min(1).max(64).regex(/^[A-Za-z0-9 _-]+$/),
 });
 

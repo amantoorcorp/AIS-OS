@@ -19,6 +19,12 @@ export function assTime(ms: number): string {
   return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(c).padStart(2, '0')}`;
 }
 
+/** #RRGGBB to ASS &H00BBGGRR. Anything else falls back to white. */
+export function assColour(hex: string | undefined): string {
+  const m = /^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/.exec(hex ?? '');
+  return m ? `&H00${m[3]}${m[2]}${m[1]}`.toUpperCase() : '&H00FFFFFF';
+}
+
 function clampPct(v: number | undefined): number {
   return Number.isFinite(v) ? Math.min(45, Math.max(-45, v as number)) : 0;
 }
@@ -35,6 +41,10 @@ function fadeMs(cue: LyricCue): number {
 
 export function buildAss(cues: LyricCue[], branding: Branding, durationMs: number): string {
   const font = sanitizeFontName(branding.fontFamily);
+  const colour = assColour(branding.lyricColor);
+  const bold = branding.lyricBold === false ? 0 : -1;
+  const spacing = Math.min(20, Math.max(0, Number.isFinite(branding.letterSpacing) ? branding.letterSpacing : 1));
+  const outline = Math.min(12, Math.max(0, Number.isFinite(branding.lyricOutline) ? branding.lyricOutline : 3));
   // Alignment 5 = middle centre, 2 = bottom centre.
   const alignment = branding.lyricPosition === 'center' ? 5 : 2;
   const marginV = branding.lyricPosition === 'center' ? 0 : 140;
@@ -53,7 +63,7 @@ export function buildAss(cues: LyricCue[], branding: Branding, durationMs: numbe
     '[V4+ Styles]',
     'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding',
     // White text, translucent black outline blurred into a soft glow, plus a soft drop shadow down-right.
-    `Style: Lyric,${font},84,&H00FFFFFF,&H00FFFFFF,&H90000000,&H50000000,1,0,0,0,100,100,1,0,1,3,5,${alignment},120,120,${marginV},1`,
+    `Style: Lyric,${font},84,${colour},${colour},&H90000000,&H50000000,${bold},0,0,0,100,100,${spacing},0,1,${outline},5,${alignment},120,120,${marginV},1`,
     `Style: Mark,${font},44,&H20FFFFFF,&H20FFFFFF,&HA0000000,&HA0000000,1,0,0,0,100,100,1,0,1,1,2,${markAlignment},60,60,50,1`,
     '',
     '[Events]',

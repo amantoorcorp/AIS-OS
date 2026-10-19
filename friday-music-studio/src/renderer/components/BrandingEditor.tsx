@@ -84,15 +84,46 @@ export function BrandingEditor({ value, onSave }: { value: Branding; onSave: (b:
         <span>Fallback background colour</span>
         <input type="color" value={b.backgroundColor} onChange={(e) => setB({ ...b, backgroundColor: e.target.value })} />
       </label>
+      <div className="field wide">
+        <span>Font style (click one)</span>
+        <div className="font-chips">
+          {BUNDLED_FONTS.map((f) => (
+            <button
+              key={f.family}
+              className={`font-chip ${b.fontFamily === f.family ? 'active' : ''}`}
+              style={{ fontFamily: `"${f.family}", sans-serif`, fontWeight: b.lyricBold ? 700 : 400 }}
+              onClick={() => setB({ ...b, fontFamily: f.family })}
+              title={f.family}
+            >
+              Aa {f.family}
+            </button>
+          ))}
+        </div>
+      </div>
       <label className="field">
-        <span>Font (bundled, or any font installed on this computer)</span>
+        <span>Or any font installed on this computer</span>
         <input list="font-options" value={b.fontFamily} maxLength={64} onChange={(e) => setB({ ...b, fontFamily: e.target.value.replace(/[^A-Za-z0-9 _-]/g, '') })} />
         <datalist id="font-options">
           {BUNDLED_FONTS.map((f) => (
             <option key={f.family} value={f.family} />
           ))}
-          <option value="Arial" />
         </datalist>
+      </label>
+      <label className="field">
+        <span>Lyric colour</span>
+        <input type="color" value={b.lyricColor} onChange={(e) => setB({ ...b, lyricColor: e.target.value.toUpperCase() })} />
+      </label>
+      <label className="field">
+        <span>Bold</span>
+        <input type="checkbox" checked={b.lyricBold} onChange={(e) => setB({ ...b, lyricBold: e.target.checked })} />
+      </label>
+      <label className="field">
+        <span>Letter spacing ({b.letterSpacing}px)</span>
+        <input type="range" min={0} max={20} step={1} value={b.letterSpacing} onChange={(e) => setB({ ...b, letterSpacing: Number(e.target.value) })} />
+      </label>
+      <label className="field">
+        <span>Outline ({b.lyricOutline}px)</span>
+        <input type="range" min={0} max={12} step={1} value={b.lyricOutline} onChange={(e) => setB({ ...b, lyricOutline: Number(e.target.value) })} />
       </label>
       <button disabled={!dirty || !b.fontFamily.trim()} onClick={() => onSave(b)}>Save branding</button>
     </div>

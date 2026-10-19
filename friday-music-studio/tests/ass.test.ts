@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assTime, buildAss, sanitizeAssText } from '../src/main/render/ass';
+import { assColour, assTime, buildAss, sanitizeAssText } from '../src/main/render/ass';
 import { DEFAULT_BRANDING, skyLyricBranding } from '../src/shared/defaults';
 
 describe('ass', () => {
@@ -52,5 +52,13 @@ describe('ass', () => {
     expect(buildAss(cue, { ...DEFAULT_BRANDING, lyricPosition: 'lower', lyricOffsetX: -10 }, 5000)).toContain('\\pos(768,940)');
     // Out-of-range values are clamped to 45%.
     expect(buildAss(cue, { ...DEFAULT_BRANDING, lyricOffsetX: 99 }, 5000)).toContain('\\pos(1824,540)');
+  });
+
+  it('applies colour, bold, letter spacing and outline to the lyric style', () => {
+    expect(assColour('#FFCC00')).toBe('&H0000CCFF');
+    expect(assColour('nope')).toBe('&H00FFFFFF');
+    const cue = [{ id: '1', startMs: 0, endMs: 3000, text: 'style me' }];
+    const ass = buildAss(cue, { ...DEFAULT_BRANDING, lyricColor: '#FFCC00', lyricBold: false, letterSpacing: 6, lyricOutline: 8, fontFamily: 'Bebas Neue' }, 5000);
+    expect(ass).toContain('Style: Lyric,Bebas Neue,84,&H0000CCFF,&H0000CCFF,&H90000000,&H50000000,0,0,0,0,100,100,6,0,1,8,5,');
   });
 });

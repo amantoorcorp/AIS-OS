@@ -54,6 +54,13 @@ export interface Branding {
   /** Moves the lyrics up or down, as a % of frame height (-45 up .. 45 down). */
   lyricOffsetY: number;
   fontFamily: string;
+  /** Lyric colour, #RRGGBB. */
+  lyricColor: string;
+  lyricBold: boolean;
+  /** Extra space between letters, in px of a 1080p frame (0..20). */
+  letterSpacing: number;
+  /** Dark outline around each letter, in px of a 1080p frame (0..12). */
+  lyricOutline: number;
 }
 
 export interface Project {

@@ -15,12 +15,23 @@ export const DEFAULT_BRANDING: Branding = {
   lyricOffsetX: 0,
   lyricOffsetY: 0,
   fontFamily: 'Arial',
+  lyricColor: '#FFFFFF',
+  lyricBold: true,
+  letterSpacing: 1,
+  lyricOutline: 3,
 };
 
-/** Fonts shipped with the app (src/renderer/public/fonts). Both are free for commercial use. */
+/** Fonts shipped with the app (src/renderer/public/fonts). All are open-licence and free for commercial use (licence files sit beside them). */
 export const BUNDLED_FONTS = [
   { family: 'Permanent Marker', file: 'PermanentMarker-Regular.ttf', licence: 'Apache-2.0' },
   { family: 'Anton', file: 'Anton-Regular.ttf', licence: 'OFL-1.1' },
+  { family: 'Bebas Neue', file: 'BebasNeue-Regular.ttf', licence: 'OFL-1.1' },
+  { family: 'Poppins', file: 'Poppins-Regular.ttf', licence: 'OFL-1.1', boldFile: 'Poppins-Bold.ttf' },
+  { family: 'Archivo Black', file: 'ArchivoBlack-Regular.ttf', licence: 'OFL-1.1' },
+  { family: 'Righteous', file: 'Righteous-Regular.ttf', licence: 'OFL-1.1' },
+  { family: 'Bangers', file: 'Bangers-Regular.ttf', licence: 'OFL-1.1' },
+  { family: 'Lobster', file: 'Lobster-Regular.ttf', licence: 'OFL-1.1' },
+  { family: 'Pacifico', file: 'Pacifico-Regular.ttf', licence: 'OFL-1.1' },
 ] as const;
 
 /** Original procedurally generated skies (scripts/make-sky.py), shipped in src/renderer/public/backgrounds. */

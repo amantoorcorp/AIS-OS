@@ -1,5 +1,13 @@
 @font-face { font-family: 'Permanent Marker'; src: url('/fonts/PermanentMarker-Regular.ttf') format('truetype'); font-display: block; }
 @font-face { font-family: 'Anton'; src: url('/fonts/Anton-Regular.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'Bebas Neue'; src: url('/fonts/BebasNeue-Regular.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'Archivo Black'; src: url('/fonts/ArchivoBlack-Regular.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'Righteous'; src: url('/fonts/Righteous-Regular.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'Bangers'; src: url('/fonts/Bangers-Regular.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'Lobster'; src: url('/fonts/Lobster-Regular.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'Pacifico'; src: url('/fonts/Pacifico-Regular.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'Poppins'; font-weight: 400; src: url('/fonts/Poppins-Regular.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'Poppins'; font-weight: 700; src: url('/fonts/Poppins-Bold.ttf') format('truetype'); font-display: block; }
 :root {
   --bg: #0f0f14;
   --panel: #181820;
@@ -131,3 +139,7 @@ input.time.bad { border-color: var(--bad); }
 .preset { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
 .preset img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; }
 .preset span { padding: 4px; font-size: 12px; }
+.field.wide { grid-column: 1 / -1; }
+.font-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.font-chip { font-size: 18px; padding: 6px 12px; }
+.font-chip.active { outline: 2px solid var(--accent); }

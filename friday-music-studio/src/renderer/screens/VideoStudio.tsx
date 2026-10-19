@@ -493,6 +493,18 @@ function lyricTransform(b: Branding): string {
   return b.lyricPosition === 'center' ? `translate(${x}cqw, calc(-50% + ${y}cqw))` : `translate(${x}cqw, ${y}cqw)`;
 }
 
+function lyricLook(b: Branding): React.CSSProperties {
+  const px = (n: number) => `calc(${n} / 1920 * 100cqw)`;
+  const outline = b.lyricOutline ?? 3;
+  return {
+    color: b.lyricColor ?? '#FFFFFF',
+    fontWeight: b.lyricBold === false ? 400 : 700,
+    letterSpacing: px(b.letterSpacing ?? 1),
+    paintOrder: 'stroke fill',
+    WebkitTextStroke: outline > 0 ? `${px(outline * 2)} rgba(0,0,0,.56)` : undefined,
+  };
+}
+
 /** Same layout rules as the ASS export: 1920-wide coordinate space scaled with container units. */
 function LyricPreview({ branding, background, cue }: { branding: Branding; background: { kind: string; id: string } | null; cue: LyricCue | null }) {
   const layout = cue ? layoutCue(cue.text, { upper: branding.textCase === 'upper', scale: branding.textScale }) : null;
@@ -506,7 +518,7 @@ function LyricPreview({ branding, background, cue }: { branding: Branding; backg
       {background && <div className="dim" style={{ opacity: branding.backgroundDim }} />}
       {branding.watermarkText && <div className={`watermark ${branding.watermarkPosition}`} style={{ fontFamily: `"${branding.fontFamily}", sans-serif` }}>{branding.watermarkText}</div>}
       {layout && (
-        <div className={`lyric ${branding.lyricPosition}`} style={{ transform: lyricTransform(branding), fontSize: `calc(${layout.fontPx} / 1920 * 100cqw)`, fontFamily: `"${branding.fontFamily}", sans-serif` }}>
+        <div className={`lyric ${branding.lyricPosition}`} style={{ transform: lyricTransform(branding), fontSize: `calc(${layout.fontPx} / 1920 * 100cqw)`, fontFamily: `"${branding.fontFamily}", sans-serif`, ...lyricLook(branding) }}>
           {layout.lines.map((l, i) => (
             <div key={i}>{l}</div>
           ))}
