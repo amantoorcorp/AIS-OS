@@ -3,7 +3,7 @@ import { api, assetUrl, renderUrl } from '../api';
 import type { ScreenProps } from '../App';
 import { BrandingEditor } from '../components/BrandingEditor';
 import { Badge, ErrorBanner, fmtBytes, fmtDate, ProjectPicker, Section, SourceBadge, useAction } from '../components/common';
-import { activeCue, cuesFromLyrics, distributeEvenly, formatMs, layoutCue, parseTime, validateCues } from '../../shared/cues';
+import { activeCue, cuesFromLyrics, distributeEvenly, shiftCues, formatMs, layoutCue, parseTime, validateCues } from '../../shared/cues';
 import { BACKGROUND_PRESETS, skyLyricBranding } from '../../shared/defaults';
 import type { Branding, LyricCue, ProjectDetail, RenderProgressEvent } from '../../shared/types';
 
@@ -361,6 +361,19 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
             >
               Add cue at playhead
             </button>
+          </div>
+          <div className="row wrap">
+            <span className="muted small-text">Shift all lyrics:</span>
+            {[-1000, -250, 250, 1000].map((d) => (
+              <button
+                key={d}
+                disabled={cues.length === 0}
+                title={d > 0 ? 'Lyrics appear later (use when they show before the singing)' : 'Lyrics appear earlier (use when they show after the singing)'}
+                onClick={() => setCues((cs) => shiftCues(cs, d, durationMs))}
+              >
+                {d > 0 ? `+${Math.abs(d) / 1000}s later` : `−${Math.abs(d) / 1000}s earlier`}
+              </button>
+            ))}
           </div>
           <p className="muted small-text">
             Lyrics on paper rarely match the sung timing exactly. Automatic spreading is only a starting point; every start/end stays editable.

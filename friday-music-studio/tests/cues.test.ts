@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { activeCue, BASE_FONT_PX, cuesFromLyrics, distributeEvenly, formatMs, layoutCue, MIN_FONT_PX, parseTime, validateCues } from '../src/shared/cues';
+import { activeCue, BASE_FONT_PX, cuesFromLyrics, distributeEvenly, formatMs, layoutCue, MIN_FONT_PX, parseTime, shiftCues, validateCues } from '../src/shared/cues';
 
 let n = 0;
 const mk = () => `00000000-0000-4000-8000-${String(++n).padStart(12, '0')}`;
@@ -50,5 +50,22 @@ describe('cues', () => {
     expect(parseTime('12.25')).toBe(12_250);
     expect(parseTime('1:75')).toBeNull();
     expect(parseTime('abc')).toBeNull();
+  });
+});
+
+describe('shiftCues', () => {
+  const cues = [
+    { id: 'a', startMs: 1000, endMs: 3000, text: 'one' },
+    { id: 'b', startMs: 9000, endMs: 10_000, text: 'two' },
+  ];
+  it('moves cues later and keeps their length', () => {
+    const r = shiftCues(cues, 1500, 20_000);
+    expect(r.map((c) => [c.startMs, c.endMs])).toEqual([[2500, 4500], [10_500, 11_500]]);
+  });
+  it('never goes before zero or past the audio end', () => {
+    const early = shiftCues(cues, -5000, 20_000);
+    expect(early[0]!.startMs).toBe(0);
+    const late = shiftCues(cues, 20_000, 20_000);
+    expect(late.every((c) => c.endMs <= 20_000 && c.endMs > c.startMs)).toBe(true);
   });
 });

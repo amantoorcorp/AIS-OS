@@ -135,3 +135,16 @@ export function parseTime(input: string): number | null {
   const frac = m[3] ? Number(m[3].padEnd(3, '0')) : 0;
   return minutes * 60000 + seconds * 1000 + frac;
 }
+
+/** Moves every cue by deltaMs (negative = earlier). Cues stay inside [0, durationMs] and keep their length where possible. */
+export function shiftCues(cues: LyricCue[], deltaMs: number, durationMs: number | null): LyricCue[] {
+  const max = durationMs ?? Number.POSITIVE_INFINITY;
+  return cues
+    .map((c) => {
+      const len = c.endMs - c.startMs;
+      const start = Math.min(Math.max(0, c.startMs + deltaMs), Math.max(0, max - 1));
+      const end = Math.min(max, Math.max(start + 1, c.endMs + deltaMs));
+      return { ...c, startMs: Math.round(start), endMs: Math.round(Math.max(end, Math.min(max, start + Math.min(len, 1)))) };
+    })
+    .sort((a, b) => a.startMs - b.startMs);
+}
