@@ -35,6 +35,10 @@ export const BUNDLED_FONTS = [
   { family: 'Bangers', file: 'Bangers-Regular.ttf', licence: 'OFL-1.1' },
   { family: 'Lobster', file: 'Lobster-Regular.ttf', licence: 'OFL-1.1' },
   { family: 'Pacifico', file: 'Pacifico-Regular.ttf', licence: 'OFL-1.1' },
+  { family: 'Rock Salt', file: 'RockSalt-Regular.ttf', licence: 'Apache-2.0' },
+  { family: 'Gochi Hand', file: 'GochiHand-Regular.ttf', licence: 'OFL-1.1' },
+  { family: 'Caveat Brush', file: 'CaveatBrush-Regular.ttf', licence: 'OFL-1.1' },
+  { family: 'Kalam', file: 'Kalam-Regular.ttf', licence: 'OFL-1.1', boldFile: 'Kalam-Bold.ttf' },
 ] as const;
 
 /** Original procedurally generated skies (scripts/make-sky.py), shipped in src/renderer/public/backgrounds. */

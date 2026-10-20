@@ -8,6 +8,11 @@
 @font-face { font-family: 'Pacifico'; src: url('/fonts/Pacifico-Regular.ttf') format('truetype'); font-display: block; }
 @font-face { font-family: 'Poppins'; font-weight: 400; src: url('/fonts/Poppins-Regular.ttf') format('truetype'); font-display: block; }
 @font-face { font-family: 'Poppins'; font-weight: 700; src: url('/fonts/Poppins-Bold.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'Rock Salt'; src: url('/fonts/RockSalt-Regular.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'Gochi Hand'; src: url('/fonts/GochiHand-Regular.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'Caveat Brush'; src: url('/fonts/CaveatBrush-Regular.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'Kalam'; font-weight: 400; src: url('/fonts/Kalam-Regular.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'Kalam'; font-weight: 700; src: url('/fonts/Kalam-Bold.ttf') format('truetype'); font-display: block; }
 :root {
   --bg: #0f0f14;
   --panel: #181820;
