@@ -55,6 +55,14 @@ export const BACKGROUND_PRESETS = [
   { id: 'dusk', label: 'Dusk', file: 'dusk.jpg' },
   { id: 'golden', label: 'Golden hour', file: 'golden.jpg' },
   { id: 'night', label: 'Night', file: 'night.jpg' },
+  { id: 'coral', label: 'Coral dawn', file: 'coral.jpg' },
+  { id: 'mountains', label: 'Mountain layers', file: 'mountains.jpg' },
+  { id: 'city', label: 'City dusk', file: 'city.jpg' },
+  { id: 'ocean', label: 'Ocean sunset', file: 'ocean.jpg' },
+  { id: 'palms', label: 'Palm sunset', file: 'palms.jpg' },
+  { id: 'neon', label: 'Neon bokeh', file: 'neon.jpg' },
+  { id: 'aurora', label: 'Aurora', file: 'aurora.jpg' },
+  { id: 'desert', label: 'Desert dunes', file: 'desert.jpg' },
 ] as const;
 export type BackgroundPresetId = (typeof BACKGROUND_PRESETS)[number]['id'];
 

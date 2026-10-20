@@ -144,3 +144,7 @@ folder from the Export box in Video Studio.
 
 - **Releases > Release text** builds the YouTube title (`Artist - Song (Lyrics)`), a description with three hashtags first, emoji lines, lyrics and an AI credit line, following the pattern in `../references/heatdrift-style-notes.md`. It refuses to carry another channel's name and shortens text to YouTube's limits.
 - **Branding > Logo picture** puts a PNG in the corner chosen by "Logo / text position". Size is 3 to 30% of the frame width. It is added to the export and the preview, never to the background.
+
+## Background presets
+
+Twelve original, procedurally generated backgrounds ship with the app (no third-party rights): the four skies from `scripts/make-sky.py` and eight scenes from `scripts/make-scenes.py` (Coral dawn, Mountain layers, City dusk, Ocean sunset, Palm sunset, Neon bokeh, Aurora, Desert dunes) at 3840x2160. Re-create them with `python3 scripts/make-scenes.py src/renderer/public/backgrounds`. Pick one in Video Studio > Look.

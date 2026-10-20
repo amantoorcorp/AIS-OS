@@ -252,7 +252,7 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
               >
                 Apply Sky Lyric style
               </button>
-              <span className="muted small-text">Brush capitals, slow sky drift, logo bottom right.</span>
+              <span className="muted small-text">Brush capitals, still picture, logo bottom right.</span>
             </div>
             <div className="presets">
               {BACKGROUND_PRESETS.map((p) => (

@@ -10,7 +10,7 @@ import { cuesToSrt } from '../src/shared/cues';
 import { checkColour } from '../src/main/render/quality';
 import { buildFfmpegArgs, checkFfmpeg, encoderTuning, probeMedia, runRender, synthesizeTone, RenderCancelledError } from '../src/main/render/ffmpeg';
 import { StudioService } from '../src/main/studio';
-import { skyLyricBranding } from '../src/shared/defaults';
+import { BACKGROUND_PRESETS, skyLyricBranding } from '../src/shared/defaults';
 
 let root: string;
 let fixtures: string;
@@ -354,5 +354,21 @@ describe('generation approval (mock provider)', () => {
     expect(inside[2]).toBeLessThan(80);
     const outside = px(1500, 985); // left of the logo: plain dark background
     expect(outside[0]).toBeLessThan(60);
+  });
+
+  it('ships every background preset as a 16:9 picture and imports them', async () => {
+    const bundled = path.resolve(__dirname, '../src/renderer/public/backgrounds');
+    expect(BACKGROUND_PRESETS.length).toBeGreaterThanOrEqual(12);
+    for (const pr of BACKGROUND_PRESETS) {
+      const probe = await probeMedia('ffprobe', path.join(bundled, pr.file));
+      expect(probe.width! / probe.height!, pr.id).toBeCloseTo(16 / 9, 2);
+      expect(probe.width!, pr.id).toBeGreaterThanOrEqual(2560);
+    }
+    const p = studio.createProject('Presets', '');
+    for (const id of ['ocean', 'aurora'] as const) {
+      const a = await studio.importPreset(p.id, id);
+      expect(studio.getDetail(p.id).project.backgroundAssetId).toBe(a.id);
+      expect(a.originalName).toBe(`Preset: ${BACKGROUND_PRESETS.find((x) => x.id === id)!.label}`);
+    }
   });
 });
