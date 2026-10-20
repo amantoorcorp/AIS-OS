@@ -139,3 +139,8 @@ Licences: Real-ESRGAN code MIT; model realesrgan-x4plus BSD-3-Clause.
 Every finished video is mirrored into `~/Movies/Friday Music Studio/<song>/` (hard links, no extra disk
 use) with `lyrics.txt`, `lyrics.srt` and a `source/` folder holding the audio and picture. Change the
 folder from the Export box in Video Studio.
+
+## Release text and logo
+
+- **Releases > Release text** builds the YouTube title (`Artist - Song (Lyrics)`), a description with three hashtags first, emoji lines, lyrics and an AI credit line, following the pattern in `../references/heatdrift-style-notes.md`. It refuses to carry another channel's name and shortens text to YouTube's limits.
+- **Branding > Logo picture** puts a PNG in the corner chosen by "Logo / text position". Size is 3 to 30% of the frame width. It is added to the export and the preview, never to the background.

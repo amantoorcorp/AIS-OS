@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { BUNDLED_FONTS } from '../../shared/defaults';
 import type { Branding } from '../../shared/types';
 
-export function BrandingEditor({ value, onSave }: { value: Branding; onSave: (b: Branding) => void }) {
+export function BrandingEditor({ value, onSave, logoName, onImportLogo }: { value: Branding; onSave: (b: Branding) => void; logoName?: string | null; onImportLogo?: () => void }) {
   const [b, setB] = useState(value);
   useEffect(() => setB(value), [value]);
   const dirty = JSON.stringify(b) !== JSON.stringify(value);
@@ -19,6 +19,20 @@ export function BrandingEditor({ value, onSave }: { value: Branding; onSave: (b:
           <option value="bottom_right">Bottom right</option>
         </select>
       </label>
+      <div className="field">
+        <span>Logo picture (PNG with a transparent background works best)</span>
+        <div className="row wrap">
+          <button disabled={!onImportLogo} onClick={() => onImportLogo?.()}>{logoName ? 'Change logo…' : 'Choose logo…'}</button>
+          {logoName && <span className="muted small-text">{logoName}</span>}
+          {logoName && <button onClick={() => onSave({ ...value, logoAssetId: null })}>Remove logo</button>}
+        </div>
+        {value.logoAssetId && (
+          <label className="field">
+            <span>Logo size ({value.logoSize}% of width, corner set by "Logo / text position")</span>
+            <input type="range" min={3} max={30} step={1} value={b.logoSize} onChange={(e) => setB({ ...b, logoSize: Number(e.target.value) })} />
+          </label>
+        )}
+      </div>
       <label className="field">
         <span>Lyric case</span>
         <select value={b.textCase} onChange={(e) => setB({ ...b, textCase: e.target.value as Branding['textCase'] })}>

@@ -40,6 +40,7 @@ export const api = {
   updateProject: (id: string, patch: Parameters<FridayApi['updateProject']>[1]) => u<Project>(b().updateProject(id, patch)),
   archiveProject: (id: string) => u<void>(b().archiveProject(id)),
   importAsset: (id: string, kind: 'audio' | 'image' | 'video') => u<Asset | null>(b().importAsset(id, kind)),
+  importLogo: (id: string) => u<Asset | null>(b().importLogo(id)),
   importPreset: (id: string, presetId: 'sunset' | 'dusk' | 'golden' | 'night') => u<Asset>(b().importPreset(id, presetId)),
   autoTimeCues: (id: string, estimateMissing: boolean) => u<AutoTimeResponse>(b().autoTimeCues(id, estimateMissing)),
   saveCues: (id: string, cues: LyricCue[]) => u<void>(b().saveCues(id, cues)),

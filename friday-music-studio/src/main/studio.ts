@@ -147,6 +147,7 @@ export class StudioService {
     this.requireProject(projectId);
     if (patch.chosenAudioAssetId) this.requireAsset(projectId, patch.chosenAudioAssetId, ['audio']);
     if (patch.backgroundAssetId) this.requireAsset(projectId, patch.backgroundAssetId, ['image', 'video']);
+    if (patch.branding?.logoAssetId) this.requireAsset(projectId, patch.branding.logoAssetId, ['image']);
     return this.store.updateProject(projectId, patch);
   }
 
@@ -159,7 +160,7 @@ export class StudioService {
   // ---------- assets ----------
 
   /** Copies a user-chosen file into the project and probes it. srcPath comes from a native dialog, never the renderer. */
-  async importAsset(projectId: string, kind: AssetKind, srcPath: string): Promise<Asset> {
+  async importAsset(projectId: string, kind: AssetKind, srcPath: string, opts: { asLogo?: boolean } = {}): Promise<Asset> {
     this.requireProject(projectId);
     const ext = path.extname(srcPath).toLowerCase();
     const mime = EXT[kind][ext];
@@ -195,7 +196,15 @@ export class StudioService {
     // First audio/background imported becomes the project's choice.
     const p = this.requireProject(projectId);
     if (kind === 'audio' && !p.chosenAudioAssetId) this.store.updateProject(projectId, { chosenAudioAssetId: id });
-    if (kind !== 'audio' && !p.backgroundAssetId) this.store.updateProject(projectId, { backgroundAssetId: id });
+    if (kind !== 'audio' && !p.backgroundAssetId && !opts.asLogo) this.store.updateProject(projectId, { backgroundAssetId: id });
+    return asset;
+  }
+
+  /** Imports a picture as the project's logo (corner overlay). It never becomes the background. */
+  async importLogo(projectId: string, srcPath: string): Promise<Asset> {
+    const asset = await this.importAsset(projectId, 'image', srcPath, { asLogo: true });
+    const p = this.requireProject(projectId);
+    this.store.updateProject(projectId, { branding: { ...p.branding, logoAssetId: asset.id } });
     return asset;
   }
 
@@ -305,6 +314,11 @@ export class StudioService {
     if (active) throw new Error('A render for this project is already running.');
 
     let backgroundSize: { width: number; height: number } | null = null;
+    let logo: RenderSpec['logo'] | null = null;
+    if (project.branding.logoAssetId) {
+      const l = this.store.getAssetPath(project.branding.logoAssetId);
+      if (l && l.asset.projectId === projectId && l.asset.kind === 'image') logo = { path: l.storedPath, widthPercent: project.branding.logoSize, position: project.branding.watermarkPosition };
+    }
     let background: RenderSpec['background'] = { kind: 'color', color: project.branding.backgroundColor };
     if (project.backgroundAssetId) {
       const bg = this.requireAsset(projectId, project.backgroundAssetId, ['image', 'video']);
@@ -328,6 +342,7 @@ export class StudioService {
       backgroundMotion: project.branding.backgroundMotion,
       backgroundFit: project.branding.backgroundFit,
       backgroundSize: backgroundSize ?? undefined,
+      logo: logo ?? undefined,
       assContent: buildAss(cues, project.branding, durationSec * 1000),
       fontsDir: path.join(this.bundledDir, 'fonts'),
     };

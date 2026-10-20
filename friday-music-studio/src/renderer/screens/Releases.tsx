@@ -3,7 +3,73 @@ import { api, renderUrl } from '../api';
 import type { ScreenProps } from '../App';
 import { Badge, ErrorBanner, fmtBytes, fmtDate, ProjectPicker, Section, useAction } from '../components/common';
 import { formatInZone } from '../../shared/defaults';
-import type { ProjectDetail } from '../../shared/types';
+import { buildReleaseText } from '../../shared/release-text';
+import type { Project, ProjectDetail } from '../../shared/types';
+
+const TEXT_KEY = 'fms.releaseText.v1';
+const TEXT_DEFAULTS = {
+  subscribeUrl: '',
+  streamUrl: '',
+  genreTags: '#deephouse #englishdeephouse',
+  aiCredit: 'Made with AI tools (Suno). The picture is AI-generated.',
+};
+
+function loadTextPrefs(): typeof TEXT_DEFAULTS {
+  try {
+    return { ...TEXT_DEFAULTS, ...(JSON.parse(localStorage.getItem(TEXT_KEY) ?? '{}') as Partial<typeof TEXT_DEFAULTS>) };
+  } catch {
+    return TEXT_DEFAULTS;
+  }
+}
+
+/** Selecting and copying through a textarea works without any browser permission. */
+function copyFrom(id: string): void {
+  const el = document.getElementById(id) as HTMLTextAreaElement | null;
+  if (!el) return;
+  el.select();
+  document.execCommand('copy');
+}
+
+function ReleaseText({ project }: { project: Project }) {
+  const [prefs, setPrefs] = useState(loadTextPrefs);
+  const [artist, setArtist] = useState(project.artist || 'HEATDRIFT');
+  useEffect(() => setArtist(project.artist || 'HEATDRIFT'), [project.id, project.artist]);
+  const update = (patch: Partial<typeof TEXT_DEFAULTS>) => {
+    const next = { ...prefs, ...patch };
+    setPrefs(next);
+    try {
+      localStorage.setItem(TEXT_KEY, JSON.stringify(next));
+    } catch {
+      /* remembering is a convenience only */
+    }
+  };
+  const text = buildReleaseText({ artist, songTitle: project.title, lyrics: project.lyrics, ...prefs });
+  return (
+    <Section title="Release text (title, description, hashtags)">
+      <p className="muted small-text">Pattern from lyric-video channels: "Artist - Song (Lyrics)", three hashtags first, short emoji lines, then the lyrics. Copy it into YouTube yourself.</p>
+      <div className="kv">
+        <label className="field"><span>Artist or channel</span><input value={artist} onChange={(e) => setArtist(e.target.value)} /></label>
+        <label className="field"><span>Channel link (with ?sub_confirmation=1)</span><input value={prefs.subscribeUrl} onChange={(e) => update({ subscribeUrl: e.target.value })} /></label>
+        <label className="field"><span>Stream link (optional)</span><input value={prefs.streamUrl} onChange={(e) => update({ streamUrl: e.target.value })} /></label>
+        <label className="field"><span>Genre hashtags</span><input value={prefs.genreTags} onChange={(e) => update({ genreTags: e.target.value })} /></label>
+        <label className="field"><span>AI credit line</span><input value={prefs.aiCredit} onChange={(e) => update({ aiCredit: e.target.value })} /></label>
+      </div>
+      {text.warnings.map((w) => (
+        <div key={w} className="banner warn">{w}</div>
+      ))}
+      <label className="field">
+        <span>Title ({text.title.length}/100)</span>
+        <textarea id="release-title" rows={1} readOnly value={text.title} />
+        <button className="small" onClick={() => copyFrom('release-title')}>Copy title</button>
+      </label>
+      <label className="field">
+        <span>Description ({text.description.length}/5000) · top hashtags: {text.topHashtags.join(' ')}</span>
+        <textarea id="release-description" rows={12} readOnly value={text.description} />
+        <button className="small" onClick={() => copyFrom('release-description')}>Copy description</button>
+      </label>
+    </Section>
+  );
+}
 
 export function Releases({ projectId, setProjectId, open }: ScreenProps) {
   const [detail, setDetail] = useState<ProjectDetail | null>(null);
@@ -38,6 +104,7 @@ export function Releases({ projectId, setProjectId, open }: ScreenProps) {
       <ErrorBanner error={error} onClose={() => setError(null)} />
       {p && detail && (
         <>
+          <ReleaseText project={p} />
           <Section title="1 · Final review">
             {detail.renders.length === 0 && (
               <p className="muted">

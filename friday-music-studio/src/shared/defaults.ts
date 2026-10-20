@@ -10,6 +10,8 @@ export const DEFAULT_BRANDING: Branding = {
   backgroundMotion: 'none',
   backgroundFit: 'fill',
   backgroundUpscale: false,
+  logoAssetId: null,
+  logoSize: 9,
   backgroundDim: 0.35,
   backgroundColor: '#14141c',
   lyricPosition: 'center',

@@ -238,6 +238,17 @@ function registerHandlers() {
     return studio.importAsset(projectId, kind, res.filePaths[0]);
   });
 
+  handle('assets:importLogo', async ({ projectId }) => {
+    studio.requireProject(projectId);
+    const res = await dialog.showOpenDialog(mainWindow!, {
+      title: 'Choose your logo (PNG with a transparent background works best)',
+      properties: ['openFile'],
+      filters: [{ name: 'image', extensions: IMPORT_EXTENSIONS.image }],
+    });
+    if (res.canceled || !res.filePaths[0]) return null;
+    return studio.importLogo(projectId, res.filePaths[0]);
+  });
+
   handle('assets:importPreset', ({ projectId, presetId }) => studio.importPreset(projectId, presetId));
 
   handle('cues:autoTime', ({ projectId, estimateMissing }) => studio.autoTimeCues(projectId, estimateMissing));

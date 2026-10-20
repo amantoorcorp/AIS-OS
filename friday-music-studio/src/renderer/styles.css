@@ -100,6 +100,9 @@ pre.exact { background: #0b0b10; border: 1px solid var(--line); border-radius: 6
 .preview img, .preview video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .preview img.blurfill { filter: blur(28px); transform: scale(1.15); }
 .preview img.whole { object-fit: contain; }
+.preview img.logo-img { position: absolute; inset: auto; height: auto; object-fit: contain; }
+.preview img.logo-img.top_left { left: calc(50 / 1920 * 100cqw); top: calc(50 / 1920 * 100cqw); }
+.preview img.logo-img.bottom_right { right: calc(50 / 1920 * 100cqw); bottom: calc(50 / 1920 * 100cqw); }
 .preview .dim { position: absolute; inset: 0; background: #000; }
 .preview .badge { position: absolute; right: 8px; top: 8px; background: rgba(0,0,0,.5); }
 .preview .watermark { position: absolute; font-size: calc(44 / 1920 * 100cqw); font-weight: 700; color: rgba(255,255,255,.75); letter-spacing: .03em; }

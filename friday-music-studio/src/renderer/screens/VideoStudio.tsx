@@ -149,7 +149,7 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
     );
 
   const audioAssets = detail!.assets.filter((a) => a.kind === 'audio');
-  const bgAssets = detail!.assets.filter((a) => a.kind !== 'audio');
+  const bgAssets = detail!.assets.filter((a) => a.kind !== 'audio' && a.id !== project.branding.logoAssetId);
   const rendering = render?.status === 'running';
 
   return (
@@ -270,7 +270,12 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
           </Section>
 
           <Section title="Branding">
-            <BrandingEditor value={project.branding} onSave={saveBranding} />
+            <BrandingEditor
+              value={project.branding}
+              onSave={saveBranding}
+              logoName={detail!.assets.find((a) => a.id === project.branding.logoAssetId)?.originalName ?? null}
+              onImportLogo={() => run(async () => { await api.importLogo(project.id); await load(); })}
+            />
           </Section>
 
           <Section title={`Export MP4 (${quality === '4k' ? '3840×2160' : '1920×1080'})`}>
@@ -541,6 +546,14 @@ function LyricPreview({ branding, background, cue }: { branding: Branding; backg
       {background?.kind === 'image' && <img className={`${drift ? 'drift' : ''} ${whole ? 'whole' : ''}`} src={assetUrl(background.id)} alt="" />}
       {background?.kind === 'video' && <video src={assetUrl(background.id)} muted loop autoPlay playsInline />}
       {background && <div className="dim" style={{ opacity: branding.backgroundDim }} />}
+      {branding.logoAssetId && (
+        <img
+          className={`logo-img ${branding.watermarkPosition}`}
+          style={{ width: `${branding.logoSize}%` }}
+          src={assetUrl(branding.logoAssetId)}
+          alt=""
+        />
+      )}
       {branding.watermarkText && <div className={`watermark ${branding.watermarkPosition}`} style={{ fontFamily: `"${branding.fontFamily}", sans-serif` }}>{branding.watermarkText}</div>}
       {layout && (
         <div className={`lyric ${branding.lyricPosition}`} style={{ transform: lyricTransform(branding), fontSize: `calc(${layout.fontPx} / 1920 * 100cqw)`, fontFamily: `"${branding.fontFamily}", sans-serif`, ...lyricLook(branding) }}>

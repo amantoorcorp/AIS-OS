@@ -25,6 +25,7 @@ beforeAll(async () => {
   execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=s=1280x720', '-frames:v', '1', path.join(fixtures, 'bg.png')]);
   execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=s=640x360:r=25', '-t', '2', '-pix_fmt', 'yuv420p', path.join(fixtures, 'bg.mp4')]);
   execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=s=1200x800', '-frames:v', '1', path.join(fixtures, 'photo32.png')]);
+  execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'color=c=red:s=400x200,format=rgba', '-frames:v', '1', path.join(fixtures, 'logo.png')]);
   store = new Store(path.join(root, 'data', 'friday.sqlite'));
   // Never let tests write into the real ~/Movies library folder.
   store.setSettings({ libraryDir: path.join(root, 'library') });
@@ -329,4 +330,29 @@ describe('generation approval (mock provider)', () => {
     studio.updateProject(p.id, { branding: { ...studio.getDetail(p.id).project.branding, backgroundUpscale: false } });
     expect((await studio.applyUpscale(p.id, spec, '4k')).background).toEqual(spec.background);
   }, 120_000);
+
+  it('puts the logo in the corner of the export without becoming the background', async () => {
+    const p = studio.createProject('Logo Song', '');
+    await studio.importAsset(p.id, 'audio', path.join(fixtures, 'song.mp3'));
+    await studio.importAsset(p.id, 'image', path.join(fixtures, 'bg.png'));
+    const bg = studio.getDetail(p.id).project.backgroundAssetId;
+    const logo = await studio.importLogo(p.id, path.join(fixtures, 'logo.png'));
+    const d = studio.getDetail(p.id).project;
+    expect(d.backgroundAssetId).toBe(bg); // the logo never replaces the background
+    expect(d.branding.logoAssetId).toBe(logo.id);
+    studio.updateProject(p.id, { branding: { ...d.branding, watermarkPosition: 'bottom_right', logoSize: 9, backgroundDim: 0 } });
+    studio.updateProject(p.id, { backgroundAssetId: null }); // solid dark colour, so anything red must be the logo
+    studio.saveCues(p.id, [{ id: '99999999-9999-4999-8999-999999999999', startMs: 200, endMs: 1500, text: 'logo' }]);
+    const { spec } = await renderProject(p.id);
+    expect(spec.logo).toMatchObject({ widthPercent: 9, position: 'bottom_right' });
+    // Red logo, 172x86 px, 50px from the bottom-right corner: its centre is at about (1784, 987).
+    const px = (x: number, y: number) =>
+      execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-ss', '2', '-i', spec.outputPath, '-vf', `crop=4:4:${x}:${y},scale=1:1:flags=area`, '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-']);
+    const inside = px(1782, 985);
+    expect(inside[0]).toBeGreaterThan(180);
+    expect(inside[1]).toBeLessThan(80);
+    expect(inside[2]).toBeLessThan(80);
+    const outside = px(1500, 985); // left of the logo: plain dark background
+    expect(outside[0]).toBeLessThan(60);
+  });
 });

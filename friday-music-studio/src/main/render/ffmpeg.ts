@@ -23,6 +23,8 @@ export interface RenderSpec {
   backgroundFit?: 'fill' | 'whole';
   /** Pixel size of a still-image background, so a 16:9 picture skips the blur layer. */
   backgroundSize?: { width: number; height: number };
+  /** Logo picture laid over the video in a corner, below the lyrics' layer order (above the background). */
+  logo?: { path: string; widthPercent: number; position: 'top_left' | 'bottom_right' };
   /** Output size; defaults to 1920x1080. Lyrics are laid out at 1080p and scaled by libass. */
   width?: number;
   height?: number;
@@ -102,11 +104,15 @@ export function encoderTuning(height: number, backgroundKind: 'image' | 'video' 
 
 export function buildFfmpegArgs(spec: RenderSpec, partialPath: string): string[] {
   const args = ['-hide_banner', '-nostdin', '-y', ...backgroundInput(spec), '-i', spec.audioPath];
+  const W = spec.width ?? 1920;
   const H = spec.height ?? 1080;
+  if (spec.logo) args.push('-loop', '1', '-framerate', String(FPS), '-i', spec.logo.path); // input 2
   const filters = backgroundFilters(spec);
   // Relative filename: avoids filter-graph escaping of absolute paths. cwd = workDir.
-  filters.push(
-    spec.fontsDir ? 'subtitles=filename=lyrics.ass:fontsdir=fonts' : 'subtitles=filename=lyrics.ass',
+  filters.push(spec.fontsDir ? 'subtitles=filename=lyrics.ass:fontsdir=fonts' : 'subtitles=filename=lyrics.ass');
+  // The logo goes on while everything is still RGB, so colours are converted once, together.
+  let graph: string;
+  const encode = [
     // Pictures are sRGB. Convert to HD (BT.709 matrix, limited range) explicitly and tag the file with the
     // sRGB transfer curve. Tagging the BT.709 curve instead makes macOS players show skin tones lighter
     // than the picture (measured: +6 levels), because the picture's values are sRGB-encoded.
@@ -114,10 +120,18 @@ export function buildFfmpegArgs(spec: RenderSpec, partialPath: string): string[]
     'format=yuv420p',
     // Frames carry their own colour tags; set them all so the encoder writes BT.709 everywhere.
     'setparams=colorspace=bt709:color_primaries=bt709:color_trc=iec61966-2-1:range=tv',
-  );
+  ];
+  if (spec.logo) {
+    const width = Math.max(16, Math.round((W * Math.min(30, Math.max(3, spec.logo.widthPercent))) / 100 / 2) * 2);
+    const margin = Math.round((50 / 1920) * W);
+    const pos = spec.logo.position === 'bottom_right' ? `x=W-w-${margin}:y=H-h-${margin}` : `x=${margin}:y=${margin}`;
+    graph = `[0:v]${filters.join(',')}[sv];[2:v]format=rgba,scale=${width}:-1:flags=lanczos[lg];[sv][lg]overlay=${pos}:format=auto[ov];[ov]${encode.join(',')}[v]`;
+  } else {
+    graph = `[0:v]${[...filters, ...encode].join(',')}[v]`;
+  }
 
   args.push(
-    '-filter_complex', `[0:v]${filters.join(',')}[v]`,
+    '-filter_complex', graph,
     '-map', '[v]',
     '-map', '1:a:0',
     '-c:v', 'libx264',

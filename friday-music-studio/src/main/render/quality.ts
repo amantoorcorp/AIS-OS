@@ -56,7 +56,7 @@ export async function checkColour(spec: RenderSpec, finalFile: string): Promise<
     await fs.writeFile(path.join(dir, 'lyrics.ass'), EMPTY_ASS, 'utf8');
     // 1. The real pipeline on 1 second without lyrics (same filters, same encoder).
     const clip = path.join(dir, 'clip.mp4');
-    const clipSpec: RenderSpec = { ...spec, workDir: dir, durationSec: 1, assContent: EMPTY_ASS };
+    const clipSpec: RenderSpec = { ...spec, workDir: dir, durationSec: 1, assContent: EMPTY_ASS, logo: undefined }; // the reference picture has no logo
     await run(spec.ffmpegPath, buildFfmpegArgs(clipSpec, clip), dir, 300_000);
     // 2. Decode like a player: BT.709 limited range back to full-range RGB.
     await run(spec.ffmpegPath, ['-hide_banner', '-nostdin', '-y', '-i', clip, '-vf', 'scale=in_color_matrix=bt709:in_range=tv:out_range=pc,format=rgb24', '-frames:v', '1', path.join(dir, 'decoded.png')], dir);
