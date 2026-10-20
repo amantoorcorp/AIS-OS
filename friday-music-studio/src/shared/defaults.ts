@@ -39,6 +39,14 @@ export const BUNDLED_FONTS = [
   { family: 'Gochi Hand', file: 'GochiHand-Regular.ttf', licence: 'OFL-1.1' },
   { family: 'Caveat Brush', file: 'CaveatBrush-Regular.ttf', licence: 'OFL-1.1' },
   { family: 'Kalam', file: 'Kalam-Regular.ttf', licence: 'OFL-1.1', boldFile: 'Kalam-Bold.ttf' },
+  { family: 'Montserrat', file: 'Montserrat-Regular.ttf', licence: 'OFL-1.1', boldFile: 'Montserrat-Bold.ttf' },
+  { family: 'Oswald', file: 'Oswald-Variable.ttf', licence: 'OFL-1.1' },
+  { family: 'Playfair Display', file: 'PlayfairDisplay-Variable.ttf', licence: 'OFL-1.1' },
+  { family: 'Dancing Script', file: 'DancingScript-Variable.ttf', licence: 'OFL-1.1' },
+  { family: 'Raleway', file: 'Raleway-Regular.ttf', licence: 'OFL-1.1', boldFile: 'Raleway-Bold.ttf' },
+  { family: 'Abril Fatface', file: 'AbrilFatface-Regular.ttf', licence: 'OFL-1.1' },
+  { family: 'Fredericka the Great', file: 'FrederickaTheGreat-Regular.ttf', licence: 'OFL-1.1' },
+  { family: 'Shadows Into Light', file: 'ShadowsIntoLight-Regular.ttf', licence: 'OFL-1.1' },
 ] as const;
 
 /** Original procedurally generated skies (scripts/make-sky.py), shipped in src/renderer/public/backgrounds. */
