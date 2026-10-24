@@ -257,8 +257,8 @@ function registerHandlers() {
   /** Renders that are still preparing (e.g. AI-upscaling the picture) and have not reached the worker yet. */
   const preparing = new Set<string>();
 
-  handle('render:start', ({ projectId, quality }) => {
-    const { job, spec } = studio.prepareRender(projectId, quality);
+  handle('render:start', ({ projectId, quality, short }) => {
+    const { job, spec } = studio.prepareRender(projectId, quality, short);
     activeRenders.set(job.id, projectId);
     preparing.add(job.id);
     studio.store.updateJob(job.id, { status: 'running' });

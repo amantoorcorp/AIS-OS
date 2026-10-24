@@ -35,6 +35,7 @@ import { readEmbeddedLyrics } from './embedded';
 import { matchEmbedded } from '../shared/embedded';
 import { findModel, findWhisperCli, openEars } from './transcribe';
 import { needsUpscale, upscalePicture } from './upscale';
+import { clampShort, cuesForWindow, SHORT_HEIGHT, SHORT_WIDTH, type ShortSpec } from '../shared/shorts';
 
 const EXT: Record<AssetKind, Record<string, string>> = {
   audio: { '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.flac': 'audio/flac', '.ogg': 'audio/ogg' },
@@ -301,7 +302,7 @@ export class StudioService {
   // ---------- render ----------
 
   /** Builds a render spec from stored state only; the renderer supplies nothing but a project ID. */
-  prepareRender(projectId: string, quality: RenderQuality = '1080p'): { job: Job; spec: RenderSpec } {
+  prepareRender(projectId: string, quality: RenderQuality = '1080p', shortSpec?: ShortSpec): { job: Job; spec: RenderSpec } {
     const project = this.requireProject(projectId);
     if (!project.chosenAudioAssetId) throw new Error('Choose or import an audio track first.');
     const audio = this.requireAsset(projectId, project.chosenAudioAssetId, ['audio']);
@@ -326,7 +327,11 @@ export class StudioService {
       if (bg.asset.width && bg.asset.height) backgroundSize = { width: bg.asset.width, height: bg.asset.height };
     }
 
-    const job = this.store.createJob('render', projectId, { audioAssetId: audio.asset.id, backgroundAssetId: project.backgroundAssetId, cueCount: cues.length, quality });
+    // A Short is a vertical 9:16 clip of one section of the song, with the cues that fall inside it.
+    const short = shortSpec ? clampShort(shortSpec, durationSec * 1000) : null;
+    const frame = short ? { width: quality === '4k' ? SHORT_WIDTH * 2 : SHORT_WIDTH, height: quality === '4k' ? SHORT_HEIGHT * 2 : SHORT_HEIGHT } : { width: quality === '4k' ? 3840 : 1920, height: quality === '4k' ? 2160 : 1080 };
+    const renderCues = short ? cuesForWindow(cues, short.startMs, short.lengthMs) : cues;
+    const job = this.store.createJob('render', projectId, { audioAssetId: audio.asset.id, backgroundAssetId: project.backgroundAssetId, cueCount: renderCues.length, quality, ...(short ? { short } : {}) });
     const dir = this.projectDir(projectId);
     const spec: RenderSpec = {
       ffmpegPath: this.ffmpegPath(),
@@ -334,16 +339,17 @@ export class StudioService {
       workDir: path.join(dir, 'work', job.id),
       outputPath: path.join(dir, 'renders', `${job.id}.mp4`),
       audioPath: audio.storedPath,
-      durationSec,
-      width: quality === '4k' ? 3840 : 1920,
-      height: quality === '4k' ? 2160 : 1080,
+      durationSec: short ? short.lengthMs / 1000 : durationSec,
+      width: frame.width,
+      height: frame.height,
+      ...(short ? { audioStartSec: short.startMs / 1000, audioFadeSec: 0.6, focusX: short.focusX } : {}),
       background,
       backgroundDim: project.backgroundAssetId ? project.branding.backgroundDim : 0,
       backgroundMotion: project.branding.backgroundMotion,
-      backgroundFit: project.branding.backgroundFit,
+      backgroundFit: short ? short.fit : project.branding.backgroundFit,
       backgroundSize: backgroundSize ?? undefined,
       logo: logo ?? undefined,
-      assContent: buildAss(cues, project.branding, durationSec * 1000),
+      assContent: short ? buildAss(renderCues, project.branding, short.lengthMs, { width: SHORT_WIDTH, height: SHORT_HEIGHT }) : buildAss(cues, project.branding, durationSec * 1000),
       fontsDir: path.join(this.bundledDir, 'fonts'),
     };
     return { job, spec };
@@ -358,7 +364,7 @@ export class StudioService {
       projectId: job.projectId,
       jobId,
       storedPath: this.assertInsideData(result.outputPath),
-      fileName: `${safeTitle}.mp4`,
+      fileName: result.probe.height > result.probe.width ? `${safeTitle} Short.mp4` : `${safeTitle}.mp4`,
       sizeBytes: result.sizeBytes,
       verified: true,
       probe: result.probe,
@@ -600,7 +606,9 @@ export class StudioService {
       for (const r of renders) {
         const full = this.store.getRender(r.id);
         if (!full) continue;
-        const res = (r.probe?.height ?? 0) >= 2160 ? '4K' : (r.probe?.height ?? 0) >= 1080 ? '1080p' : `${r.probe?.height ?? '?'}p`;
+        const vertical = (r.probe?.height ?? 0) > (r.probe?.width ?? 0);
+        const long = Math.max(r.probe?.height ?? 0, r.probe?.width ?? 0);
+        const res = `${vertical ? 'Short ' : ''}${long >= 3840 ? '4K' : long >= 1920 ? '1080p' : `${r.probe?.height ?? '?'}p`}`;
         const stamp = new Date(r.createdAt);
         const pad = (n: number) => String(n).padStart(2, '0');
         const when = `${stamp.getFullYear()}-${pad(stamp.getMonth() + 1)}-${pad(stamp.getDate())} ${pad(stamp.getHours())}${pad(stamp.getMinutes())}`;

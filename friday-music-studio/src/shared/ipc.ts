@@ -62,7 +62,18 @@ export const channels = {
   'assets:importPreset': z.strictObject({ projectId: id, presetId: z.enum(['sunset', 'dusk', 'golden', 'night', 'coral', 'mountains', 'city', 'ocean', 'palms', 'neon', 'aurora', 'desert']) }),
   'cues:autoTime': z.strictObject({ projectId: id, estimateMissing: z.boolean() }),
   'cues:save': z.strictObject({ projectId: id, cues: z.array(CueSchema).max(2000) }),
-  'render:start': z.strictObject({ projectId: id, quality: z.enum(['1080p', '4k']) }),
+  'render:start': z.strictObject({
+    projectId: id,
+    quality: z.enum(['1080p', '4k']),
+    short: z
+      .strictObject({
+        startMs: z.number().int().min(0).max(24 * 3600 * 1000),
+        lengthMs: z.number().int().min(5_000).max(180_000),
+        focusX: z.number().min(0).max(1),
+        fit: z.enum(['fill', 'whole']),
+      })
+      .optional(),
+  }),
   'render:cancel': z.strictObject({ jobId: id }),
   'render:saveCopy': z.strictObject({ outputId: id }),
   'render:reveal': z.strictObject({ outputId: id }),

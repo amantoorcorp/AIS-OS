@@ -3,11 +3,13 @@ import { api, renderUrl } from '../api';
 import type { ScreenProps } from '../App';
 import { Badge, ErrorBanner, fmtBytes, fmtDate, ProjectPicker, Section, useAction } from '../components/common';
 import { formatInZone } from '../../shared/defaults';
-import { buildReleaseText } from '../../shared/release-text';
-import type { Project, ProjectDetail } from '../../shared/types';
+import { buildReleaseText, buildShortCaptions } from '../../shared/release-text';
+import { hookLine } from '../../shared/shorts';
+import type { LyricCue, Project, ProjectDetail } from '../../shared/types';
 
 const TEXT_KEY = 'fms.releaseText.v1';
 const TEXT_DEFAULTS = {
+  fullVideoUrl: '',
   subscribeUrl: '',
   streamUrl: '',
   genreTags: '#deephouse #englishdeephouse',
@@ -30,7 +32,7 @@ function copyFrom(id: string): void {
   document.execCommand('copy');
 }
 
-function ReleaseText({ project }: { project: Project }) {
+function ReleaseText({ project, cues }: { project: Project; cues: LyricCue[] }) {
   const [prefs, setPrefs] = useState(loadTextPrefs);
   const [artist, setArtist] = useState(project.artist || 'HEATDRIFT');
   useEffect(() => setArtist(project.artist || 'HEATDRIFT'), [project.id, project.artist]);
@@ -43,7 +45,9 @@ function ReleaseText({ project }: { project: Project }) {
       /* remembering is a convenience only */
     }
   };
-  const text = buildReleaseText({ artist, songTitle: project.title, lyrics: project.lyrics, ...prefs });
+  const text = buildReleaseText({ artist, songTitle: project.title, lyrics: project.lyrics, subscribeUrl: prefs.subscribeUrl, streamUrl: prefs.streamUrl, genreTags: prefs.genreTags, aiCredit: prefs.aiCredit });
+  const hook = hookLine(cues);
+  const shorts = buildShortCaptions({ artist, songTitle: project.title, hook, fullVideoUrl: prefs.fullVideoUrl, genreTags: prefs.genreTags });
   return (
     <Section title="Release text (title, description, hashtags)">
       <p className="muted small-text">Pattern from lyric-video channels: "Artist - Song (Lyrics)", three hashtags first, short emoji lines, then the lyrics. Copy it into YouTube yourself.</p>
@@ -66,6 +70,27 @@ function ReleaseText({ project }: { project: Project }) {
         <span>Description ({text.description.length}/5000) · top hashtags: {text.topHashtags.join(' ')}</span>
         <textarea id="release-description" rows={12} readOnly value={text.description} />
         <button className="small" onClick={() => copyFrom('release-description')}>Copy description</button>
+      </label>
+      <h3>Short captions (YouTube Shorts and TikTok)</h3>
+      <label className="field"><span>Link to the full video on YouTube</span><input value={prefs.fullVideoUrl} onChange={(e) => update({ fullVideoUrl: e.target.value })} /></label>
+      <p className="muted small-text">Hook line found in your lyrics: {hook ? `"${hook}"` : 'none repeats yet'}</p>
+      {shorts.warnings.map((w) => (
+        <div key={w} className="banner warn">{w}</div>
+      ))}
+      <label className="field">
+        <span>YouTube Shorts title</span>
+        <textarea id="short-title" rows={1} readOnly value={shorts.youtubeTitle} />
+        <button className="small" onClick={() => copyFrom('short-title')}>Copy</button>
+      </label>
+      <label className="field">
+        <span>YouTube Shorts description</span>
+        <textarea id="short-description" rows={5} readOnly value={shorts.youtubeDescription} />
+        <button className="small" onClick={() => copyFrom('short-description')}>Copy</button>
+      </label>
+      <label className="field">
+        <span>TikTok caption</span>
+        <textarea id="short-tiktok" rows={5} readOnly value={shorts.tiktokCaption} />
+        <button className="small" onClick={() => copyFrom('short-tiktok')}>Copy</button>
       </label>
     </Section>
   );
@@ -104,7 +129,7 @@ export function Releases({ projectId, setProjectId, open }: ScreenProps) {
       <ErrorBanner error={error} onClose={() => setError(null)} />
       {p && detail && (
         <>
-          <ReleaseText project={p} />
+          <ReleaseText project={p} cues={detail.cues} />
           <Section title="1 · Final review">
             {detail.renders.length === 0 && (
               <p className="muted">

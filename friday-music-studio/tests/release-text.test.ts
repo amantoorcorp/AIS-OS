@@ -52,3 +52,50 @@ describe('release text', () => {
     expect(hashtagSlug("Heater on Low!")).toBe('heateronlow');
   });
 });
+
+import { buildShortCaptions } from '../src/shared/release-text';
+import { clampShort, cuesForWindow, hookLine, suggestHookStart } from '../src/shared/shorts';
+
+describe('short captions', () => {
+  const input = { artist: 'HEATDRIFT', songTitle: 'Day Light', hook: 'No more maybe', fullVideoUrl: 'https://youtu.be/abc', genreTags: '#deephouse #englishdeephouse' };
+  it('writes a YouTube Shorts title and description and a TikTok caption', () => {
+    const r = buildShortCaptions(input);
+    expect(r.youtubeTitle).toBe('HEATDRIFT - Day Light #Shorts');
+    expect(r.youtubeDescription).toContain('"No more maybe"');
+    expect(r.youtubeDescription).toContain('▶ Full song: https://youtu.be/abc');
+    expect(r.youtubeDescription).toContain('#shorts #deephouse #englishdeephouse #newmusic #originalsong');
+    expect(r.tiktokCaption).toContain('Full song on YouTube: https://youtu.be/abc');
+    expect(r.tiktokCaption.split('\n').pop()!.split(' ').length).toBeLessThanOrEqual(5); // few hashtags
+    expect(r.warnings).toEqual([]);
+  });
+  it('warns when the full-video link is missing and blocks another channel name', () => {
+    expect(buildShortCaptions({ ...input, fullVideoUrl: '' }).warnings.join(' ')).toMatch(/link/);
+    expect(buildShortCaptions({ ...input, artist: '7clouds' }).warnings.join(' ')).toMatch(/another channel/);
+  });
+});
+
+describe('short helpers', () => {
+  const cue = (id: string, s: number, e: number, text: string) => ({ id, startMs: s, endMs: e, text });
+  const cues = [cue('a', 1000, 3000, 'verse one'), cue('b', 5000, 7000, 'No more maybe'), cue('c', 9000, 11000, 'verse two'), cue('d', 13000, 15000, 'no more maybe!')];
+  it('finds the hook and starts a little before it', () => {
+    expect(hookLine(cues)).toBe('No more maybe');
+    expect(suggestHookStart(cues)).toBe(3500);
+    expect(suggestHookStart([cue('x', 2000, 3000, 'only once')])).toBe(500);
+  });
+  it('prefers a repeated block of lines (the chorus) over a short repeated line', () => {
+    const c = (i: number, text: string) => ({ id: String(i), startMs: i * 4000, endMs: i * 4000 + 3000, text });
+    const lines = ['da da daylight', 'verse a', 'verse b', 'no more maybe', 'saving you a seat', 'got my hands up', 'da da daylight', 'verse c', 'no more maybe', 'saving you a seat', 'got my hands up', 'da da daylight'];
+    const cs = lines.map((l, i) => c(i, l));
+    expect(hookLine(cs)).toBe('no more maybe');
+    expect(suggestHookStart(cs)).toBe(3 * 4000 - 1500);
+  });
+  it('cuts cues to a window and moves it to start at zero', () => {
+    const w = cuesForWindow(cues, 4000, 6000);
+    expect(w.map((c) => [c.id, c.startMs, c.endMs])).toEqual([['b', 1000, 3000], ['c', 5000, 6000]]);
+  });
+  it('keeps a window inside the song and inside the Shorts limits', () => {
+    expect(clampShort({ startMs: 100_000, lengthMs: 60_000, focusX: 2, fit: 'fill' }, 120_000)).toEqual({ startMs: 60_000, lengthMs: 60_000, focusX: 1, fit: 'fill' });
+    expect(clampShort({ startMs: 0, lengthMs: 999_999, focusX: 0.5, fit: 'whole' }, 600_000).lengthMs).toBe(180_000);
+    expect(clampShort({ startMs: 0, lengthMs: 1000, focusX: 0.5, fit: 'fill' }, 600_000).lengthMs).toBe(5000);
+  });
+});

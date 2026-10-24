@@ -48,6 +48,48 @@ export function lyricsForDescription(lyrics: string): string {
   return out.join('\n');
 }
 
+export interface ShortCaptionInput {
+  artist: string;
+  songTitle: string;
+  /** The most repeated lyric line, shown as the hook. May be empty. */
+  hook: string;
+  /** Link to the full video on YouTube. May be empty. */
+  fullVideoUrl: string;
+  genreTags: string;
+}
+
+export interface ShortCaptions {
+  youtubeTitle: string;
+  youtubeDescription: string;
+  tiktokCaption: string;
+  warnings: string[];
+}
+
+const TIKTOK_MAX = 2200;
+
+/** Titles and captions for a vertical Short on YouTube Shorts and TikTok. */
+export function buildShortCaptions(input: ShortCaptionInput): ShortCaptions {
+  const warnings: string[] = [];
+  const song = input.songTitle.trim();
+  const artist = input.artist.trim();
+  const genre = input.genreTags.trim().split(/\s+/).filter((t) => t.startsWith('#')).slice(0, 3);
+  const base = `${artist ? `${artist} - ` : ''}${song}`;
+  let youtubeTitle = `${base} #Shorts`;
+  if (youtubeTitle.length > TITLE_MAX) {
+    youtubeTitle = `${base.slice(0, TITLE_MAX - ' #Shorts…'.length).trimEnd()}… #Shorts`;
+    warnings.push(`The Short title was shortened to fit YouTube's ${TITLE_MAX} character limit.`);
+  }
+  const url = input.fullVideoUrl.trim();
+  const hook = input.hook.trim();
+  const ytTags = ['#shorts', ...genre, '#newmusic', '#originalsong'];
+  const youtubeDescription = [hook ? `"${hook}"` : '', `🎧 ${base}`, url ? `▶ Full song: ${url}` : '', ytTags.join(' ')].filter(Boolean).join('\n');
+  const ttTags = [...genre, '#newmusic', '#originalsong', '#lyrics'].slice(0, 5);
+  const tiktokCaption = [hook ? `${hook} 🎶` : '', `${base} 🎧`, url ? `Full song on YouTube: ${url}` : 'Full song on YouTube (link in bio)', ttTags.join(' ')].filter(Boolean).join('\n').slice(0, TIKTOK_MAX);
+  if (BLOCKED.test(`${youtubeTitle}\n${youtubeDescription}\n${tiktokCaption}`)) warnings.push('Remove the name of another channel (7clouds). It misleads viewers and can cause a strike.');
+  if (!url) warnings.push('Add the link to the full video so viewers can find the whole song.');
+  return { youtubeTitle, youtubeDescription, tiktokCaption, warnings };
+}
+
 export function buildReleaseText(input: ReleaseTextInput): ReleaseText {
   const artist = input.artist.trim();
   const song = input.songTitle.trim();

@@ -148,3 +148,14 @@ folder from the Export box in Video Studio.
 ## Background presets
 
 Twelve original, procedurally generated backgrounds ship with the app (no third-party rights): the four skies from `scripts/make-sky.py` and eight scenes from `scripts/make-scenes.py` (Coral dawn, Mountain layers, City dusk, Ocean sunset, Palm sunset, Neon bokeh, Aurora, Desert dunes) at 3840x2160. Re-create them with `python3 scripts/make-scenes.py src/renderer/public/backgrounds`. Pick one in Video Studio > Look.
+
+## Shorts (YouTube Shorts and TikTok)
+
+In Video Studio > Export, set **Format** to **Short**. A Short is a vertical 9:16 clip (1080x1920, or 2160x3840 at 4K) of one part of the song, 5 seconds to 3 minutes (15 to 60 works best).
+
+- **Starts at / Length:** type a time, use the playhead, or **Suggest the hook** (finds the chorus, the block of lines the song repeats, and starts 1.5 s before it).
+- **Picture focus:** which part of a wide picture to keep when it is cropped to vertical. The small preview shows the result.
+- **Picture fit:** fill the screen, or the whole picture in the middle with a blurred copy above and below.
+- Lyrics in that part are re-timed to start at 0:00, the sound fades in and out, and lyric size and wrapping are set for a narrow screen. Keep text out of the bottom 20%, where the apps cover the video.
+- **Releases > Short captions** writes the YouTube Shorts title and description and a TikTok caption, with the full-video link.
+- Shorts land in the Library folder named `<song> - Short 1080p - <date>.mp4`.

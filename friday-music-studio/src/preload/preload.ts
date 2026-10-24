@@ -32,7 +32,8 @@ const api = {
   importPreset: (projectId: string, presetId: string) => call('assets:importPreset', { projectId, presetId }),
   autoTimeCues: (projectId: string, estimateMissing: boolean) => call('cues:autoTime', { projectId, estimateMissing }),
   saveCues: (projectId: string, cues: LyricCue[]) => call('cues:save', { projectId, cues }),
-  startRender: (projectId: string, quality: '1080p' | '4k') => call('render:start', { projectId, quality }),
+  startRender: (projectId: string, quality: '1080p' | '4k', short?: { startMs: number; lengthMs: number; focusX: number; fit: 'fill' | 'whole' }) =>
+    call('render:start', short ? { projectId, quality, short } : { projectId, quality }),
   cancelRender: (jobId: string) => call('render:cancel', { jobId }),
   saveRenderCopy: (outputId: string) => call('render:saveCopy', { outputId }),
   revealRender: (outputId: string) => call('render:reveal', { outputId }),

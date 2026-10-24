@@ -371,4 +371,32 @@ describe('generation approval (mock provider)', () => {
       expect(a.originalName).toBe(`Preset: ${BACKGROUND_PRESETS.find((x) => x.id === id)!.label}`);
     }
   });
+
+  it('exports a vertical 9:16 Short of one section with only that section\'s audio and lyrics', async () => {
+    const p = studio.createProject('Short Song', '');
+    const long = path.join(fixtures, 'long.mp3');
+    await synthesizeTone('ffmpeg', long, 20, 330);
+    await studio.importAsset(p.id, 'audio', long);
+    await studio.importAsset(p.id, 'image', path.join(fixtures, 'bg.png'));
+    studio.saveCues(p.id, [
+      { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', startMs: 1000, endMs: 3000, text: 'before the clip' },
+      { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', startMs: 8500, endMs: 10_500, text: 'inside the clip, a longer line to wrap' },
+    ]);
+    const { job, spec } = studio.prepareRender(p.id, '1080p', { startMs: 8000, lengthMs: 6000, focusX: 0.25, fit: 'fill' });
+    expect(spec).toMatchObject({ width: 1080, height: 1920, audioStartSec: 8, focusX: 0.25 });
+    expect(spec.durationSec).toBeCloseTo(6, 1);
+    expect(spec.assContent).toContain('PlayResX: 1080');
+    expect(spec.assContent).toContain('PlayResY: 1920');
+    expect(spec.assContent).not.toContain('before the clip');
+    expect(spec.assContent).toMatch(/inside the clip/i);
+    expect(spec.assContent).toContain('0:00:00.50'); // cue at 8.5 s starts 0.5 s into the clip
+    const result = await runRender(spec, () => {}, new AbortController().signal);
+    const output = await studio.finishRender(job.id, result);
+    expect(output.probe).toMatchObject({ width: 1080, height: 1920, videoCodec: 'h264' });
+    expect(output.probe!.durationSec).toBeCloseTo(spec.durationSec, 0);
+    expect(output.fileName).toBe('Short Song Short.mp4');
+    expect(output.probe?.check?.tagsOk).toBe(true);
+    // The Library names it as a Short.
+    expect(readdirSync(path.join(root, 'library', 'Short Song')).some((n) => /Short 1080p/.test(n))).toBe(true);
+  });
 });

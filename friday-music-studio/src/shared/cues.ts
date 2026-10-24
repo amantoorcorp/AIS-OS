@@ -30,8 +30,10 @@ export interface LayoutOptions {
   upper?: boolean;
   /** Size multiplier, 0.4..2. */
   scale?: number;
-  /** Sideways move of the lyrics in px of the 1920-wide frame. Lines shrink so they stay inside the frame. */
+  /** Sideways move of the lyrics in px of the frame. Lines shrink so they stay inside the frame. */
   offsetXPx?: number;
+  /** Frame width the sizes are measured in. 1920 for 16:9 video, 1080 for a vertical Short. */
+  frameWidth?: number;
 }
 
 /** Side margin kept free on each side of the frame when lyrics are moved sideways. */
@@ -61,20 +63,27 @@ export function layoutCue(text: string, opts: LayoutOptions = {}): CueLayout {
   let lines = splitCueLines(text).slice(0, MAX_LINES);
   if (opts.upper) lines = lines.map((l) => l.toLocaleUpperCase());
   let longest = lines.reduce((m, l) => Math.max(m, [...l].length), 0);
-  const base = Math.round(BASE_FONT_PX * scale);
+  const frameW = opts.frameWidth ?? VIDEO_WIDTH;
+  // A narrow (vertical) frame keeps the same proportions, with text 1.5x larger relative to the frame so it reads on a phone.
+  const unit = frameW / VIDEO_WIDTH;
+  const sizeUnit = frameW === VIDEO_WIDTH ? 1 : unit * 1.5;
+  const baseFont = BASE_FONT_PX * sizeUnit;
+  const base = Math.round(baseFont * scale);
+  const comfortWidth = COMFORT_WIDTH_PX * unit;
   // Capitals run wider, so they get fewer characters per line before shrinking.
   // Moving sideways leaves less room on one side; text is centred on its anchor, so room = twice the nearer edge.
-  const cx = VIDEO_WIDTH / 2 + (opts.offsetXPx ?? 0);
-  const room = 2 * Math.max(0, Math.min(cx, VIDEO_WIDTH - cx) - EDGE_MARGIN_PX);
-  const roomFactor = Math.min(1, Math.max(0.1, room / COMFORT_WIDTH_PX));
-  const comfort = (COMFORT_CHARS * (opts.upper ? 0.85 : 1) * roomFactor) / scale;
-  if (roomFactor < 1 && lines.length === 1 && longest > comfort) {
+  const cx = frameW / 2 + (opts.offsetXPx ?? 0);
+  const room = 2 * Math.max(0, Math.min(cx, frameW - cx) - EDGE_MARGIN_PX * unit);
+  const roomFactor = Math.min(1, Math.max(0.1, room / comfortWidth));
+  const comfort = (COMFORT_CHARS * (comfortWidth / COMFORT_WIDTH_PX) * (BASE_FONT_PX / baseFont) * (opts.upper ? 0.85 : 1) * roomFactor) / scale;
+  // Narrow frames and sideways moves both have little room: split one long line into two balanced lines first.
+  if ((roomFactor < 1 || frameW < VIDEO_WIDTH) && lines.length === 1 && longest > comfort) {
     lines = balancedSplit(lines[0]!);
     longest = lines.reduce((m, l) => Math.max(m, [...l].length), 0);
   }
   let fontPx = base;
   if (longest > comfort) {
-    const floor = Math.min(base, roomFactor < 1 ? MIN_EDGE_FONT_PX : MIN_FONT_PX);
+    const floor = Math.min(base, (roomFactor < 1 ? MIN_EDGE_FONT_PX : MIN_FONT_PX) * Math.max(unit, 0.6));
     fontPx = Math.max(floor, Math.floor((base * comfort) / longest));
   }
   return { lines, fontPx };

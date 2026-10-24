@@ -116,15 +116,15 @@ pre.exact { background: #0b0b10; border: 1px solid var(--line); border-radius: 6
 .preview img.blurfill { filter: blur(28px); transform: scale(1.15); }
 .preview img.whole { object-fit: contain; }
 .preview img.logo-img { position: absolute; inset: auto; height: auto; object-fit: contain; }
-.preview img.logo-img.top_left { left: calc(50 / 1920 * 100cqw); top: calc(50 / 1920 * 100cqw); }
-.preview img.logo-img.bottom_right { right: calc(50 / 1920 * 100cqw); bottom: calc(50 / 1920 * 100cqw); }
+.preview img.logo-img.top_left { left: calc(50 / var(--ref, 1920) * 100cqw); top: calc(50 / var(--ref, 1920) * 100cqw); }
+.preview img.logo-img.bottom_right { right: calc(50 / var(--ref, 1920) * 100cqw); bottom: calc(50 / var(--ref, 1920) * 100cqw); }
 .preview .dim { position: absolute; inset: 0; background: #000; }
 .preview .badge { position: absolute; right: 8px; top: 8px; background: rgba(0,0,0,.5); }
-.preview .watermark { position: absolute; font-size: calc(44 / 1920 * 100cqw); font-weight: 700; color: rgba(255,255,255,.75); letter-spacing: .03em; }
+.preview .watermark { position: absolute; font-size: calc(44 / var(--ref, 1920) * 100cqw); font-weight: 700; color: rgba(255,255,255,.75); letter-spacing: .03em; }
 .lyric { position: absolute; left: 0; right: 0; text-align: center; color: #fff; font-weight: 700; white-space: pre; line-height: 1.2;
-  text-shadow: 0 0 calc(8 / 1920 * 100cqw) rgba(0,0,0,.65), calc(3 / 1920 * 100cqw) calc(3 / 1920 * 100cqw) calc(6 / 1920 * 100cqw) rgba(0,0,0,.6); }
+  text-shadow: 0 0 calc(8 / var(--ref, 1920) * 100cqw) rgba(0,0,0,.65), calc(3 / var(--ref, 1920) * 100cqw) calc(3 / var(--ref, 1920) * 100cqw) calc(6 / var(--ref, 1920) * 100cqw) rgba(0,0,0,.6); }
 .lyric.center { top: 50%; }
-.lyric.lower { bottom: calc(140 / 1920 * 100cqw); }
+.lyric.lower { bottom: calc(140 / var(--ref, 1920) * 100cqw); }
 .transport { display: flex; gap: 10px; align-items: center; }
 .transport input[type=range] { flex: 1; }
 .progress-wrap { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
@@ -146,13 +146,13 @@ input.time { width: 92px; font-family: ui-monospace, Menlo, Consolas, monospace;
 input.time.bad { border-color: var(--bad); }
 .branding { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; align-items: end; }
 .field > .badge { align-self: flex-start; }
-.preview .watermark.top_left { left: calc(60 / 1920 * 100cqw); top: calc(50 / 1920 * 100cqw); }
-.preview .watermark.bottom_right { right: calc(60 / 1920 * 100cqw); bottom: calc(50 / 1920 * 100cqw); }
+.preview .watermark.top_left { left: calc(60 / var(--ref, 1920) * 100cqw); top: calc(50 / var(--ref, 1920) * 100cqw); }
+.preview .watermark.bottom_right { right: calc(60 / var(--ref, 1920) * 100cqw); bottom: calc(50 / var(--ref, 1920) * 100cqw); }
 /* Matches the export: 15% overscan, 90s horizontal / 70s vertical sine drift. */
 .preview img.drift { width: 115%; height: 115%; left: -7.5%; top: -7.5%; animation: drift-x 90s ease-in-out infinite alternate, drift-y 70s ease-in-out infinite alternate; }
 @keyframes drift-x { from { translate: 6.5% 0; } to { translate: -6.5% 0; } }
 @keyframes drift-y { from { margin-top: 3.2%; } to { margin-top: -3.2%; } }
-.preview .lyric { text-shadow: 0 0 calc(6 / 1920 * 100cqw) rgba(0,0,0,.55), calc(4 / 1920 * 100cqw) calc(4 / 1920 * 100cqw) calc(8 / 1920 * 100cqw) rgba(0,0,0,.5); }
+.preview .lyric { text-shadow: 0 0 calc(6 / var(--ref, 1920) * 100cqw) rgba(0,0,0,.55), calc(4 / var(--ref, 1920) * 100cqw) calc(4 / var(--ref, 1920) * 100cqw) calc(8 / var(--ref, 1920) * 100cqw) rgba(0,0,0,.5); }
 .presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
 .preset { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
 .preset img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; }
@@ -161,3 +161,8 @@ input.time.bad { border-color: var(--bad); }
 .font-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .font-chip { font-size: 18px; padding: 6px 12px; }
 .font-chip.active { outline: 2px solid var(--accent); }
+
+.preview.vertical { aspect-ratio: 9 / 16; --ref: 1080; }
+.short-box { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; margin: 10px 0; }
+.short-box .controls { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 260px; }
+.short-box .vpreview { width: 200px; flex: none; }

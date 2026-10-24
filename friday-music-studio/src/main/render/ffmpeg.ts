@@ -23,6 +23,12 @@ export interface RenderSpec {
   backgroundFit?: 'fill' | 'whole';
   /** Pixel size of a still-image background, so a 16:9 picture skips the blur layer. */
   backgroundSize?: { width: number; height: number };
+  /** Short (vertical clip): where in the song the clip starts, in seconds. Audio is cut from here. */
+  audioStartSec?: number;
+  /** Short: fade the sound in and out over this many seconds so the cut does not click. */
+  audioFadeSec?: number;
+  /** When a picture is cropped to the frame: 0 keeps the left edge, 1 the right edge, 0.5 the centre. */
+  focusX?: number;
   /** Logo picture laid over the video in a corner, below the lyrics' layer order (above the background). */
   logo?: { path: string; widthPercent: number; position: 'top_left' | 'bottom_right' };
   /** Output size; defaults to 1920x1080. Lyrics are laid out at 1080p and scaled by libass. */
@@ -67,7 +73,9 @@ export function backgroundFilters(spec: RenderSpec): string[] {
   const H = spec.height ?? 1080;
   const bg = spec.background;
   const dim = Math.min(0.8, Math.max(0, spec.backgroundDim));
-  const drift = bg.kind === 'image' && spec.backgroundMotion === 'drift' && spec.backgroundFit !== 'whole';
+  const vertical = H > W;
+  const focus = Math.min(1, Math.max(0, spec.focusX ?? 0.5));
+  const drift = bg.kind === 'image' && spec.backgroundMotion === 'drift' && spec.backgroundFit !== 'whole' && !vertical;
   // A picture that is already 16:9 (within 1%) needs no letterbox, and the extra layer would only soften it.
   const sameShape = !!spec.backgroundSize && Math.abs(spec.backgroundSize.width / spec.backgroundSize.height / (W / H) - 1) < 0.01;
   const whole = bg.kind === 'image' && spec.backgroundFit === 'whole' && !sameShape;
@@ -83,11 +91,11 @@ export function backgroundFilters(spec: RenderSpec): string[] {
     : whole
       ? [
           // Whole picture centred; a cheap blurred, cropped copy fills the bars.
-          `split=2[a][b];[a]scale=480:270:force_original_aspect_ratio=increase,crop=480:270,boxblur=8:2,scale=${W}:${H}[bg];[b]scale=${W}:${H}:force_original_aspect_ratio=decrease:flags=lanczos[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2`,
+          `split=2[a][b];[a]scale=${vertical ? '270:480' : '480:270'}:force_original_aspect_ratio=increase,crop=${vertical ? '270:480' : '480:270'},boxblur=8:2,scale=${W}:${H}[bg];[b]scale=${W}:${H}:force_original_aspect_ratio=decrease:flags=lanczos[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2`,
           'setsar=1',
           `fps=${FPS}`,
         ]
-      : [`scale=${W}:${H}:force_original_aspect_ratio=increase:flags=lanczos`, `crop=${W}:${H}`, 'setsar=1', `fps=${FPS}`];
+      : [`scale=${W}:${H}:force_original_aspect_ratio=increase:flags=lanczos`, `crop=${W}:${H}:x='(iw-ow)*${focus}':y='(ih-oh)/2'`, 'setsar=1', `fps=${FPS}`];
   if (dim > 0) filters.push(`drawbox=x=0:y=0:w=iw:h=ih:color=black@${dim.toFixed(2)}:t=fill`);
   return filters;
 }
@@ -103,7 +111,8 @@ export function encoderTuning(height: number, backgroundKind: 'image' | 'video' 
 }
 
 export function buildFfmpegArgs(spec: RenderSpec, partialPath: string): string[] {
-  const args = ['-hide_banner', '-nostdin', '-y', ...backgroundInput(spec), '-i', spec.audioPath];
+  const audioIn = spec.audioStartSec ? ['-ss', spec.audioStartSec.toFixed(3), '-i', spec.audioPath] : ['-i', spec.audioPath];
+  const args = ['-hide_banner', '-nostdin', '-y', ...backgroundInput(spec), ...audioIn];
   const W = spec.width ?? 1920;
   const H = spec.height ?? 1080;
   if (spec.logo) args.push('-loop', '1', '-framerate', String(FPS), '-i', spec.logo.path); // input 2
@@ -134,6 +143,9 @@ export function buildFfmpegArgs(spec: RenderSpec, partialPath: string): string[]
     '-filter_complex', graph,
     '-map', '[v]',
     '-map', '1:a:0',
+    ...(spec.audioFadeSec
+      ? ['-af', `afade=t=in:d=${Math.min(0.3, spec.audioFadeSec).toFixed(2)},afade=t=out:st=${Math.max(0, spec.durationSec - spec.audioFadeSec).toFixed(3)}:d=${spec.audioFadeSec.toFixed(2)}`]
+      : []),
     '-c:v', 'libx264',
     '-colorspace', 'bt709',
     '-color_primaries', 'bt709',
