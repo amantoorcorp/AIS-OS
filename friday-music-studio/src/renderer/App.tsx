@@ -4,15 +4,17 @@ import { Connections } from './screens/Connections';
 import { SongStudio } from './screens/SongStudio';
 import { VideoStudio } from './screens/VideoStudio';
 import { Releases } from './screens/Releases';
+import { Shorts } from './screens/Shorts';
 import { SettingsScreen } from './screens/Settings';
 
-export type Screen = 'dashboard' | 'connections' | 'song' | 'video' | 'releases' | 'settings';
+export type Screen = 'dashboard' | 'connections' | 'song' | 'video' | 'shorts' | 'releases' | 'settings';
 
 const NAV: Array<[Screen, string]> = [
   ['dashboard', 'Dashboard'],
   ['connections', 'Connections'],
   ['song', 'Song Studio'],
   ['video', 'Video Studio'],
+  ['shorts', 'Shorts'],
   ['releases', 'Releases'],
   ['settings', 'Settings'],
 ];
@@ -46,6 +48,7 @@ export function App() {
         {screen === 'connections' && <Connections />}
         {screen === 'song' && <SongStudio {...props} />}
         {screen === 'video' && <VideoStudio {...props} />}
+        {screen === 'shorts' && <Shorts {...props} />}
         {screen === 'releases' && <Releases {...props} />}
         {screen === 'settings' && <SettingsScreen />}
       </main>

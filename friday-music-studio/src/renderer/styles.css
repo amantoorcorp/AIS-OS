@@ -166,3 +166,21 @@ input.time.bad { border-color: var(--bad); }
 .short-box { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; margin: 10px 0; }
 .short-box .controls { display: flex; flex-direction: column; gap: 10px; flex: 1; min-width: 260px; }
 .short-box .vpreview { width: 200px; flex: none; }
+
+.wave { position: relative; height: 110px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; touch-action: none; cursor: pointer; user-select: none; }
+.wave canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.wave-mark { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,.12); pointer-events: none; }
+.wave-shade { position: absolute; top: 0; bottom: 0; background: rgba(0,0,0,.55); pointer-events: none; }
+.wave-sel { position: absolute; top: 0; bottom: 0; border-top: 3px solid var(--ok); border-bottom: 3px solid var(--ok); background: rgba(62,207,142,.12); cursor: grab; }
+.wave-handle { position: absolute; top: 0; bottom: 0; width: 14px; background: var(--ok); cursor: ew-resize; }
+.wave-handle.left { left: -2px; border-radius: 6px 0 0 6px; }
+.wave-handle.right { right: -2px; border-radius: 0 6px 6px 0; }
+.wave-head { position: absolute; top: 0; bottom: 0; width: 2px; background: #fff; pointer-events: none; text-decoration: none; }
+.pic-choice { padding: 0; border: 2px solid transparent; border-radius: 6px; overflow: hidden; width: 120px; }
+.pic-choice.active { border-color: var(--accent); }
+.pic-choice img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; }
+.vpreview.big { width: 280px; }
+.preview.draggable { cursor: grab; touch-action: none; }
+.preview.draggable:active { cursor: grabbing; }
+.short-video { max-height: 520px; margin-top: 10px; border-radius: 8px; }
+button.active { outline: 2px solid var(--accent); }

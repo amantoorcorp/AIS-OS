@@ -29,6 +29,12 @@ export interface RenderSpec {
   audioFadeSec?: number;
   /** When a picture is cropped to the frame: 0 keeps the left edge, 1 the right edge, 0.5 the centre. */
   focusX?: number;
+  /** Same for the vertical direction (0 top, 1 bottom). */
+  focusY?: number;
+  /** Zoom into the picture (1 = just fills the frame). */
+  zoom?: number;
+  /** Which picture asset the background is, for caching the AI upscale. */
+  backgroundAssetId?: string;
   /** Logo picture laid over the video in a corner, below the lyrics' layer order (above the background). */
   logo?: { path: string; widthPercent: number; position: 'top_left' | 'bottom_right' };
   /** Output size; defaults to 1920x1080. Lyrics are laid out at 1080p and scaled by libass. */
@@ -75,6 +81,8 @@ export function backgroundFilters(spec: RenderSpec): string[] {
   const dim = Math.min(0.8, Math.max(0, spec.backgroundDim));
   const vertical = H > W;
   const focus = Math.min(1, Math.max(0, spec.focusX ?? 0.5));
+  const focusY = Math.min(1, Math.max(0, spec.focusY ?? 0.5));
+  const zoom = Math.min(3, Math.max(1, spec.zoom ?? 1));
   const drift = bg.kind === 'image' && spec.backgroundMotion === 'drift' && spec.backgroundFit !== 'whole' && !vertical;
   // A picture that is already 16:9 (within 1%) needs no letterbox, and the extra layer would only soften it.
   const sameShape = !!spec.backgroundSize && Math.abs(spec.backgroundSize.width / spec.backgroundSize.height / (W / H) - 1) < 0.01;
@@ -95,7 +103,7 @@ export function backgroundFilters(spec: RenderSpec): string[] {
           'setsar=1',
           `fps=${FPS}`,
         ]
-      : [`scale=${W}:${H}:force_original_aspect_ratio=increase:flags=lanczos`, `crop=${W}:${H}:x='(iw-ow)*${focus}':y='(ih-oh)/2'`, 'setsar=1', `fps=${FPS}`];
+      : [`scale=${Math.round(W * zoom)}:${Math.round(H * zoom)}:force_original_aspect_ratio=increase:flags=lanczos`, `crop=${W}:${H}:x='(iw-ow)*${focus}':y='(ih-oh)*${focusY}'`, 'setsar=1', `fps=${FPS}`];
   if (dim > 0) filters.push(`drawbox=x=0:y=0:w=iw:h=ih:color=black@${dim.toFixed(2)}:t=fill`);
   return filters;
 }

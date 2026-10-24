@@ -15,6 +15,12 @@ export interface ShortSpec {
   lengthMs: number;
   /** Which part of a wider picture to keep when cropping to 9:16: 0 = left edge, 1 = right edge. */
   focusX: number;
+  /** Same for the vertical direction: 0 = top, 1 = bottom. Matters once the picture is zoomed in. */
+  focusY: number;
+  /** 1 = the picture just fills the frame, 3 = three times closer. */
+  zoom: number;
+  /** A different picture for the Short than the video's background. Null or missing = the video's background. */
+  backgroundAssetId?: string | null;
   /** fill = crop the picture to fill the frame. whole = whole picture across the middle with a blurred copy above and below. */
   fit: 'fill' | 'whole';
 }
@@ -23,7 +29,16 @@ export interface ShortSpec {
 export function clampShort(spec: ShortSpec, audioMs: number): ShortSpec {
   const length = Math.round(Math.min(SHORT_MAX_MS, Math.max(SHORT_MIN_MS, spec.lengthMs, 0), Math.max(SHORT_MIN_MS, audioMs)));
   const start = Math.round(Math.min(Math.max(0, spec.startMs), Math.max(0, audioMs - length)));
-  return { startMs: start, lengthMs: Math.min(length, Math.max(1, audioMs - start)), focusX: Math.min(1, Math.max(0, spec.focusX)), fit: spec.fit };
+  const unit = (v: number, d: number) => (Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : d);
+  return {
+    startMs: start,
+    lengthMs: Math.min(length, Math.max(1, audioMs - start)),
+    focusX: unit(spec.focusX, 0.5),
+    focusY: unit(spec.focusY, 0.5),
+    zoom: Number.isFinite(spec.zoom) ? Math.min(3, Math.max(1, spec.zoom)) : 1,
+    fit: spec.fit,
+    ...(spec.backgroundAssetId ? { backgroundAssetId: spec.backgroundAssetId } : {}),
+  };
 }
 
 /** Cues that overlap the window, moved so the window starts at 0 and cut to its length. */

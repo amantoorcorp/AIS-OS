@@ -1,10 +1,11 @@
 // Integration tests against real ffmpeg/ffprobe and a real SQLite file.
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Store } from '../src/main/db';
+import { audioPeaks, reducePeaks } from '../src/main/peaks';
 import { needsUpscale, upscalerInstalled } from '../src/main/upscale';
 import { cuesToSrt } from '../src/shared/cues';
 import { checkColour } from '../src/main/render/quality';
@@ -382,7 +383,7 @@ describe('generation approval (mock provider)', () => {
       { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', startMs: 1000, endMs: 3000, text: 'before the clip' },
       { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', startMs: 8500, endMs: 10_500, text: 'inside the clip, a longer line to wrap' },
     ]);
-    const { job, spec } = studio.prepareRender(p.id, '1080p', { startMs: 8000, lengthMs: 6000, focusX: 0.25, fit: 'fill' });
+    const { job, spec } = studio.prepareRender(p.id, '1080p', { startMs: 8000, lengthMs: 6000, focusX: 0.25, focusY: 0.5, zoom: 1, fit: 'fill' });
     expect(spec).toMatchObject({ width: 1080, height: 1920, audioStartSec: 8, focusX: 0.25 });
     expect(spec.durationSec).toBeCloseTo(6, 1);
     expect(spec.assContent).toContain('PlayResX: 1080');
@@ -398,5 +399,41 @@ describe('generation approval (mock provider)', () => {
     expect(output.probe?.check?.tagsOk).toBe(true);
     // The Library names it as a Short.
     expect(readdirSync(path.join(root, 'library', 'Short Song')).some((n) => /Short 1080p/.test(n))).toBe(true);
+  });
+
+  it('makes a waveform of the song', async () => {
+    const song = path.join(fixtures, 'song.mp3');
+    const peaks = await audioPeaks('ffmpeg', song, 200);
+    expect(peaks).toHaveLength(200);
+    expect(Math.max(...peaks)).toBe(1);
+    expect(peaks.filter((p) => p > 0.3).length).toBeGreaterThan(150); // a steady tone is loud almost everywhere
+    expect(reducePeaks(new Int16Array([0, 100, -200, 50]), 2)).toEqual([0.5, 1]);
+    expect(reducePeaks(new Int16Array(0), 3)).toEqual([0, 0, 0]);
+  });
+
+  it('pans and zooms the picture in a Short exactly as the maths says, with its own picture', async () => {
+    const p = studio.createProject('Pan Zoom', '');
+    const long = path.join(fixtures, 'long.mp3');
+    await synthesizeTone('ffmpeg', long, 20, 330);
+    await studio.importAsset(p.id, 'audio', long);
+    await studio.importAsset(p.id, 'image', path.join(fixtures, 'bg.png'));
+    const own = await studio.importAsset(p.id, 'image', path.join(fixtures, 'photo32.png')); // 1200x800, the Short's own picture
+    studio.updateProject(p.id, { branding: { ...studio.getDetail(p.id).project.branding, backgroundDim: 0, lyricOutline: 0 } });
+    studio.saveCues(p.id, []);
+    const { job, spec } = studio.prepareRender(p.id, '1080p', { startMs: 1000, lengthMs: 5000, focusX: 0.2, focusY: 0.3, zoom: 2, fit: 'fill', backgroundAssetId: own.id });
+    expect((spec.background as { path: string }).path).toMatch(new RegExp(`${own.id}\\.png$`)); // the Short's own picture, not the video's
+    expect(spec.backgroundAssetId).toBe(own.id);
+    const result = await runRender(spec, () => {}, new AbortController().signal);
+    await studio.finishRender(job.id, result);
+    // Expected frame: cover scale 2.4x (1920/800), zoom 2 -> 4.8x = 5760x3840, window at 20% / 30% of the overflow.
+    const dec = path.join(root, 'pz-decoded.png');
+    const ref = path.join(root, 'pz-ref.png');
+    execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-ss', '1', '-i', spec.outputPath, '-vf', 'scale=in_color_matrix=bt709:in_range=tv:out_range=pc,format=rgb24', '-frames:v', '1', dec]);
+    const stored = (spec.background as { path: string }).path;
+    execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', stored, '-vf', 'scale=5760:3840:flags=lanczos,crop=1080:1920:936:576,format=rgb24', '-frames:v', '1', ref]);
+    const r = spawnSync('ffmpeg', ['-hide_banner', '-i', dec, '-i', ref, '-lavfi', 'psnr', '-f', 'null', '-'], { encoding: 'utf8' });
+    const db = /average:(inf|[0-9.]+)/.exec(r.stderr ?? '');
+    expect(db, r.stderr?.slice(-200)).not.toBeNull();
+    expect(db![1] === 'inf' ? 99 : Number(db![1])).toBeGreaterThan(30); // same pixels: the crop window is where the maths puts it
   });
 });

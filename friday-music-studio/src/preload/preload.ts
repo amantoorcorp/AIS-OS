@@ -32,7 +32,7 @@ const api = {
   importPreset: (projectId: string, presetId: string) => call('assets:importPreset', { projectId, presetId }),
   autoTimeCues: (projectId: string, estimateMissing: boolean) => call('cues:autoTime', { projectId, estimateMissing }),
   saveCues: (projectId: string, cues: LyricCue[]) => call('cues:save', { projectId, cues }),
-  startRender: (projectId: string, quality: '1080p' | '4k', short?: { startMs: number; lengthMs: number; focusX: number; fit: 'fill' | 'whole' }) =>
+  startRender: (projectId: string, quality: '1080p' | '4k', short?: { startMs: number; lengthMs: number; focusX: number; focusY: number; zoom: number; fit: 'fill' | 'whole'; backgroundAssetId?: string | null }) =>
     call('render:start', short ? { projectId, quality, short } : { projectId, quality }),
   cancelRender: (jobId: string) => call('render:cancel', { jobId }),
   saveRenderCopy: (outputId: string) => call('render:saveCopy', { outputId }),
@@ -49,6 +49,7 @@ const api = {
   pickBinary: (which: 'ffmpeg' | 'ffprobe') => call('settings:pickBinary', { which }),
   resetBinary: (which: 'ffmpeg' | 'ffprobe') => call('settings:resetBinary', { which }),
   checkTools: () => call('settings:checkTools'),
+  songPeaks: (projectId: string) => call('audio:peaks', { projectId }),
   getLibrary: () => call('library:get'),
   openLibrary: () => call('library:open'),
   pickLibrary: () => call('library:pick'),

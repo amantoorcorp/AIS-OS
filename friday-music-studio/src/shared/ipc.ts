@@ -70,7 +70,10 @@ export const channels = {
         startMs: z.number().int().min(0).max(24 * 3600 * 1000),
         lengthMs: z.number().int().min(5_000).max(180_000),
         focusX: z.number().min(0).max(1),
+        focusY: z.number().min(0).max(1),
+        zoom: z.number().min(1).max(3),
         fit: z.enum(['fill', 'whole']),
+        backgroundAssetId: id.nullable().optional(),
       })
       .optional(),
   }),
@@ -101,6 +104,7 @@ export const channels = {
   'settings:pickBinary': z.strictObject({ which: z.enum(['ffmpeg', 'ffprobe']) }),
   'settings:resetBinary': z.strictObject({ which: z.enum(['ffmpeg', 'ffprobe']) }),
   'settings:checkTools': z.undefined(),
+  'audio:peaks': z.strictObject({ projectId: id }),
   'library:get': z.undefined(),
   'library:open': z.undefined(),
   'library:pick': z.undefined(),

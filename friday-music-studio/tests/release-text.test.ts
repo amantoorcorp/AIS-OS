@@ -94,8 +94,8 @@ describe('short helpers', () => {
     expect(w.map((c) => [c.id, c.startMs, c.endMs])).toEqual([['b', 1000, 3000], ['c', 5000, 6000]]);
   });
   it('keeps a window inside the song and inside the Shorts limits', () => {
-    expect(clampShort({ startMs: 100_000, lengthMs: 60_000, focusX: 2, fit: 'fill' }, 120_000)).toEqual({ startMs: 60_000, lengthMs: 60_000, focusX: 1, fit: 'fill' });
-    expect(clampShort({ startMs: 0, lengthMs: 999_999, focusX: 0.5, fit: 'whole' }, 600_000).lengthMs).toBe(180_000);
-    expect(clampShort({ startMs: 0, lengthMs: 1000, focusX: 0.5, fit: 'fill' }, 600_000).lengthMs).toBe(5000);
+    expect(clampShort({ startMs: 100_000, lengthMs: 60_000, focusX: 2, focusY: 0.5, zoom: 1, fit: 'fill' }, 120_000)).toEqual({ startMs: 60_000, lengthMs: 60_000, focusX: 1, focusY: 0.5, zoom: 1, fit: 'fill' });
+    expect(clampShort({ startMs: 0, lengthMs: 999_999, focusX: 0.5, focusY: 0.5, zoom: 1, fit: 'whole' }, 600_000).lengthMs).toBe(180_000);
+    expect(clampShort({ startMs: 0, lengthMs: 1000, focusX: 0.5, focusY: 0.5, zoom: 1, fit: 'fill' }, 600_000).lengthMs).toBe(5000);
   });
 });

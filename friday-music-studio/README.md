@@ -151,11 +151,12 @@ Twelve original, procedurally generated backgrounds ship with the app (no third-
 
 ## Shorts (YouTube Shorts and TikTok)
 
-In Video Studio > Export, set **Format** to **Short**. A Short is a vertical 9:16 clip (1080x1920, or 2160x3840 at 4K) of one part of the song, 5 seconds to 3 minutes (15 to 60 works best).
+Open **Shorts** in the left menu. Five steps on one page:
 
-- **Starts at / Length:** type a time, use the playhead, or **Suggest the hook** (finds the chorus, the block of lines the song repeats, and starts 1.5 s before it).
-- **Picture focus:** which part of a wide picture to keep when it is cropped to vertical. The small preview shows the result.
-- **Picture fit:** fill the screen, or the whole picture in the middle with a blurred copy above and below.
-- Lyrics in that part are re-timed to start at 0:00, the sound fades in and out, and lyric size and wrapping are set for a narrow screen. Keep text out of the bottom 20%, where the apps cover the video.
-- **Releases > Short captions** writes the YouTube Shorts title and description and a TikTok caption, with the full-video link.
-- Shorts land in the Library folder named `<song> - Short 1080p - <date>.mp4`.
+1. **The song:** the project's audio.
+2. **The picture (thumbnail):** pick one of the project's pictures or choose a new one. It can differ from the video's background.
+3. **The part of the song:** a waveform of the whole song. Drag the left or right edge to set the start or end, drag the middle to slide the part, click the waveform to listen from there, or press **Pick the chorus**. 5 seconds to 3 minutes (15 to 60 works best). Thin lines show where lyrics start.
+4. **Frame it:** a phone-shaped preview. Drag the picture to choose what shows, zoom in to keep a face, or show the whole picture with a blurred copy above and below.
+5. **Make the Short:** 1080x1920, or 2160x3840 at 4K. Lyrics in the chosen part are re-timed to start at 0:00, the sound fades in and out, and lyric size and wrapping are set for a narrow screen. Keep text out of the bottom 20%.
+
+Font, size, colour, logo and lyric position come from Video Studio > Branding. **Releases > Short captions** writes the YouTube Shorts title and description and a TikTok caption. Shorts are saved in the Library folder as `<song> - Short 1080p - <date>.mp4`.

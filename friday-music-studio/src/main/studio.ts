@@ -36,6 +36,7 @@ import { matchEmbedded } from '../shared/embedded';
 import { findModel, findWhisperCli, openEars } from './transcribe';
 import { needsUpscale, upscalePicture } from './upscale';
 import { clampShort, cuesForWindow, SHORT_HEIGHT, SHORT_WIDTH, type ShortSpec } from '../shared/shorts';
+import { audioPeaks } from './peaks';
 
 const EXT: Record<AssetKind, Record<string, string>> = {
   audio: { '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.flac': 'audio/flac', '.ogg': 'audio/ogg' },
@@ -314,6 +315,10 @@ export class StudioService {
     const active = this.store.listJobs(projectId, 50).find((j) => j.type === 'render' && (j.status === 'running' || j.status === 'queued'));
     if (active) throw new Error('A render for this project is already running.');
 
+    // A Short is a vertical 9:16 clip of one section of the song, with the cues that fall inside it.
+    const short = shortSpec ? clampShort(shortSpec, durationSec * 1000) : null;
+    const frame = short ? { width: quality === '4k' ? SHORT_WIDTH * 2 : SHORT_WIDTH, height: quality === '4k' ? SHORT_HEIGHT * 2 : SHORT_HEIGHT } : { width: quality === '4k' ? 3840 : 1920, height: quality === '4k' ? 2160 : 1080 };
+    const renderCues = short ? cuesForWindow(cues, short.startMs, short.lengthMs) : cues;
     let backgroundSize: { width: number; height: number } | null = null;
     let logo: RenderSpec['logo'] | null = null;
     if (project.branding.logoAssetId) {
@@ -321,17 +326,15 @@ export class StudioService {
       if (l && l.asset.projectId === projectId && l.asset.kind === 'image') logo = { path: l.storedPath, widthPercent: project.branding.logoSize, position: project.branding.watermarkPosition };
     }
     let background: RenderSpec['background'] = { kind: 'color', color: project.branding.backgroundColor };
-    if (project.backgroundAssetId) {
-      const bg = this.requireAsset(projectId, project.backgroundAssetId, ['image', 'video']);
+    // A Short may use its own picture instead of the video's background.
+    const bgAssetId = short?.backgroundAssetId ?? project.backgroundAssetId;
+    if (bgAssetId) {
+      const bg = this.requireAsset(projectId, bgAssetId, short?.backgroundAssetId ? ['image'] : ['image', 'video']);
       background = { kind: bg.asset.kind as 'image' | 'video', path: bg.storedPath };
       if (bg.asset.width && bg.asset.height) backgroundSize = { width: bg.asset.width, height: bg.asset.height };
     }
 
-    // A Short is a vertical 9:16 clip of one section of the song, with the cues that fall inside it.
-    const short = shortSpec ? clampShort(shortSpec, durationSec * 1000) : null;
-    const frame = short ? { width: quality === '4k' ? SHORT_WIDTH * 2 : SHORT_WIDTH, height: quality === '4k' ? SHORT_HEIGHT * 2 : SHORT_HEIGHT } : { width: quality === '4k' ? 3840 : 1920, height: quality === '4k' ? 2160 : 1080 };
-    const renderCues = short ? cuesForWindow(cues, short.startMs, short.lengthMs) : cues;
-    const job = this.store.createJob('render', projectId, { audioAssetId: audio.asset.id, backgroundAssetId: project.backgroundAssetId, cueCount: renderCues.length, quality, ...(short ? { short } : {}) });
+    const job = this.store.createJob('render', projectId, { audioAssetId: audio.asset.id, backgroundAssetId: short?.backgroundAssetId ?? project.backgroundAssetId, cueCount: renderCues.length, quality, ...(short ? { short } : {}) });
     const dir = this.projectDir(projectId);
     const spec: RenderSpec = {
       ffmpegPath: this.ffmpegPath(),
@@ -342,12 +345,13 @@ export class StudioService {
       durationSec: short ? short.lengthMs / 1000 : durationSec,
       width: frame.width,
       height: frame.height,
-      ...(short ? { audioStartSec: short.startMs / 1000, audioFadeSec: 0.6, focusX: short.focusX } : {}),
+      ...(short ? { audioStartSec: short.startMs / 1000, audioFadeSec: 0.6, focusX: short.focusX, focusY: short.focusY, zoom: short.zoom } : {}),
       background,
       backgroundDim: project.backgroundAssetId ? project.branding.backgroundDim : 0,
       backgroundMotion: project.branding.backgroundMotion,
       backgroundFit: short ? short.fit : project.branding.backgroundFit,
       backgroundSize: backgroundSize ?? undefined,
+      ...(bgAssetId ? { backgroundAssetId: bgAssetId } : {}),
       logo: logo ?? undefined,
       assContent: short ? buildAss(renderCues, project.branding, short.lengthMs, { width: SHORT_WIDTH, height: SHORT_HEIGHT }) : buildAss(cues, project.branding, durationSec * 1000),
       fontsDir: path.join(this.bundledDir, 'fonts'),
@@ -567,7 +571,7 @@ export class StudioService {
    */
   async applyUpscale(projectId: string, spec: RenderSpec, quality: RenderQuality): Promise<RenderSpec> {
     const project = this.requireProject(projectId);
-    const bgId = project.backgroundAssetId;
+    const bgId = spec.backgroundAssetId ?? project.backgroundAssetId;
     if (!bgId || spec.background.kind !== 'image') return spec;
     const a = this.store.getAssetPath(bgId);
     if (!a || !needsUpscale({ enabled: project.branding.backgroundUpscale === true, quality, kind: a.asset.kind, widthPx: a.asset.width })) return spec;
@@ -578,6 +582,14 @@ export class StudioService {
       background: { kind: 'image', path: up },
       backgroundSize: a.asset.width && a.asset.height ? { width: a.asset.width * 4, height: a.asset.height * 4 } : spec.backgroundSize,
     };
+  }
+
+  /** Loudness peaks of the chosen song for the waveform on the Shorts screen. */
+  async songPeaks(projectId: string): Promise<{ peaks: number[]; durationMs: number }> {
+    const project = this.requireProject(projectId);
+    if (!project.chosenAudioAssetId) throw new Error('Choose or import an audio track first.');
+    const audio = this.requireAsset(projectId, project.chosenAudioAssetId, ['audio']);
+    return { peaks: await audioPeaks(this.ffmpegPath(), audio.storedPath, 900), durationMs: Math.round((audio.asset.durationSec ?? 0) * 1000) };
   }
 
   // ---------- library: one visible folder with everything ----------

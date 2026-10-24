@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, assetUrl, renderUrl } from '../api';
 import type { ScreenProps } from '../App';
 import { BrandingEditor } from '../components/BrandingEditor';
+import { LyricPreview } from '../components/LyricPreview';
 import { Badge, ErrorBanner, fmtBytes, fmtDate, ProjectPicker, Section, SourceBadge, useAction } from '../components/common';
-import { suggestHookStart } from '../../shared/shorts';
-import { activeCue, cuesFromLyrics, distributeEvenly, shiftCues, formatMs, layoutCue, parseTime, validateCues } from '../../shared/cues';
+import { activeCue, cuesFromLyrics, distributeEvenly, shiftCues, formatMs, parseTime, validateCues } from '../../shared/cues';
 import { BACKGROUND_PRESETS, skyLyricBranding } from '../../shared/defaults';
 import type { Branding, LyricCue, ProjectDetail, RenderProgressEvent } from '../../shared/types';
 
@@ -19,11 +19,6 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
   const [tapIndex, setTapIndex] = useState<number | null>(null);
   const [timing, setTiming] = useState(false);
   const [quality, setQuality] = useState<'1080p' | '4k'>('1080p');
-  const [format, setFormat] = useState<'full' | 'short'>('full');
-  const [shortStart, setShortStart] = useState(0);
-  const [shortSeconds, setShortSeconds] = useState(30);
-  const [shortFocus, setShortFocus] = useState(50);
-  const [shortFit, setShortFit] = useState<'fill' | 'whole'>('fill');
   const [libraryDir, setLibraryDir] = useState<string | null>(null);
   useEffect(() => {
     void api.getLibrary().then((l) => setLibraryDir(l.dir)).catch(() => undefined);
@@ -284,75 +279,27 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
             />
           </Section>
 
-          <Section title={`Export MP4 (${format === 'short' ? (quality === '4k' ? '2160×3840 Short' : '1080×1920 Short') : quality === '4k' ? '3840×2160' : '1920×1080'})`}>
+          <Section title={`Export MP4 (${quality === '4k' ? '3840×2160' : '1920×1080'})`}>
             {audio?.source === 'mock_provider' && <div className="banner mock">This project uses MOCK audio. Exports are for testing only and cannot pass release review.</div>}
             <div className="row">
               <label className="muted small-text">
-                Format{' '}
-                <select value={format} disabled={rendering} onChange={(e) => setFormat(e.target.value as 'full' | 'short')}>
-                  <option value="full">Full video (16:9)</option>
-                  <option value="short">Short (9:16, YouTube Shorts and TikTok)</option>
-                </select>
-              </label>
-              <label className="muted small-text">
                 Quality{' '}
                 <select value={quality} disabled={rendering} onChange={(e) => setQuality(e.target.value as '1080p' | '4k')}>
-                  <option value="1080p">{format === 'short' ? '1080p (1080×1920, fast)' : '1080p (1920×1080, fast)'}</option>
-                  <option value="4k">{format === 'short' ? '4K (2160×3840, slower, bigger file)' : '4K (3840×2160, slower, bigger file)'}</option>
+                  <option value="1080p">1080p (1920×1080, fast)</option>
+                  <option value="4k">4K (3840×2160, slower, bigger file)</option>
                 </select>
               </label>
               <button
                 className="primary"
                 disabled={busy || rendering || !audio || dirty || errorCount > 0}
                 title={dirty ? 'Save cues first' : errorCount ? 'Fix timing errors first' : undefined}
-                onClick={() => run(async () => { const r = await api.startRender(project.id, quality, format === 'short' ? { startMs: shortStart, lengthMs: shortSeconds * 1000, focusX: shortFocus / 100, fit: shortFit } : undefined); setRender({ jobId: r.jobId, projectId: project.id, status: 'running', progress: 0, error: null }); })}
+                onClick={() => run(async () => { const r = await api.startRender(project.id, quality); setRender({ jobId: r.jobId, projectId: project.id, status: 'running', progress: 0, error: null }); })}
               >
-                {format === 'short' ? 'Export Short MP4' : 'Export MP4'}
+                Export MP4
               </button>
               {rendering && <button onClick={() => run(() => api.cancelRender(render!.jobId))}>Cancel</button>}
               {dirty && <span className="muted">Save cues before exporting.</span>}
             </div>
-            {format === 'short' && (
-              <div className="short-box">
-                <div className="controls">
-                  <p className="muted small-text">A Short is a vertical clip of one part of the song (5 seconds to 3 minutes; 15 to 60 works best). Lyrics inside that part are timed for you.</p>
-                  <div className="row wrap">
-                    <label className="field"><span>Starts at</span><TimeInput value={shortStart} onChange={(ms) => setShortStart(Math.min(ms, Math.max(0, (durationMs ?? ms) - 5000)))} /></label>
-                    <button onClick={() => setShortStart(Math.round(nowMs))} title="Use where the preview is now">Use playhead</button>
-                    <button onClick={() => setShortStart(suggestHookStart(cues))} title="Starts just before the line the song repeats most">Suggest the hook</button>
-                    <label className="field">
-                      <span>Length</span>
-                      <select value={shortSeconds} onChange={(e) => setShortSeconds(Number(e.target.value))}>
-                        {[15, 20, 30, 45, 60, 90, 120, 180].map((s) => (
-                          <option key={s} value={s}>{s} seconds</option>
-                        ))}
-                      </select>
-                    </label>
-                    <button onClick={() => { seek(shortStart); void audioRef.current?.play(); }}>Play from start</button>
-                  </div>
-                  <label className="field">
-                    <span>Which part of the picture to keep ({shortFocus}%: 0 left edge, 100 right edge)</span>
-                    <input type="range" min={0} max={100} step={1} value={shortFocus} onChange={(e) => setShortFocus(Number(e.target.value))} />
-                  </label>
-                  <label className="field">
-                    <span>Picture fit</span>
-                    <select value={shortFit} onChange={(e) => setShortFit(e.target.value as 'fill' | 'whole')}>
-                      <option value="fill">Fill the screen (crops the sides)</option>
-                      <option value="whole">Whole picture in the middle, blurred copy above and below</option>
-                    </select>
-                  </label>
-                  <p className="muted small-text">Lyric size, font, colour and position come from Branding. Keep text out of the bottom 20%: apps cover it.</p>
-                </div>
-                <div className="vpreview">
-                  <LyricPreview
-                    branding={project.branding}
-                    background={background ? { kind: background.kind, id: background.id } : null}
-                    cue={current}
-                    short={{ focusX: shortFocus / 100, fit: shortFit }}
-                  />
-                </div>
-              </div>
-            )}
             {render && (
               <div className="progress-wrap">
                 <div className="progress">
@@ -567,70 +514,5 @@ function TimeInput({ value, onChange }: { value: number; onChange: (ms: number) 
       onKeyDown={(e) => e.key === 'Enter' && commit()}
       aria-label="Time (mm:ss.mmm)"
     />
-  );
-}
-
-/** Offsets are % of the frame: X of its width, Y of its height (16:9, so 1% of height = 0.5625cqw). */
-function lyricTransform(b: Branding, heightRatio = 0.5625): string {
-  const x = b.lyricOffsetX ?? 0;
-  const y = (b.lyricOffsetY ?? 0) * heightRatio;
-  return b.lyricPosition === 'center' ? `translate(${x}cqw, calc(-50% + ${y}cqw))` : `translate(${x}cqw, ${y}cqw)`;
-}
-
-function lyricLook(b: Branding, ref = 1920): React.CSSProperties {
-  const px = (n: number) => `calc(${n} / ${ref} * 100cqw)`;
-  const outline = b.lyricOutline ?? 3;
-  return {
-    color: b.lyricColor ?? '#FFFFFF',
-    fontWeight: b.lyricBold === false ? 400 : 700,
-    letterSpacing: px(b.letterSpacing ?? 1),
-    paintOrder: 'stroke fill',
-    WebkitTextStroke: outline > 0 ? `${px(outline * 2)} rgba(0,0,0,.56)` : undefined,
-  };
-}
-
-/** Same layout rules as the ASS export: 1920-wide coordinate space scaled with container units. */
-function LyricPreview({
-  branding,
-  background,
-  cue,
-  short,
-}: {
-  branding: Branding;
-  background: { kind: string; id: string } | null;
-  cue: LyricCue | null;
-  /** A vertical 9:16 Short preview: how the picture is framed and where the lyrics sit. */
-  short?: { focusX: number; fit: 'fill' | 'whole' };
-}) {
-  const ref = short ? 1080 : 1920;
-  const layout = cue ? layoutCue(cue.text, { upper: branding.textCase === 'upper', scale: branding.textScale, offsetXPx: ((branding.lyricOffsetX ?? 0) * ref) / 100, frameWidth: ref }) : null;
-  const whole = background?.kind === 'image' && (short ? short.fit === 'whole' : branding.backgroundFit === 'whole');
-  const drift = !short && background?.kind === 'image' && branding.backgroundMotion === 'drift' && !whole;
-  const fillPos = short ? { objectPosition: `${Math.round(short.focusX * 100)}% 50%` } : undefined;
-  const lowerStyle = short && branding.lyricPosition === 'lower' ? { bottom: `calc(22 * 1.7778 * 1cqw)` } : undefined;
-  return (
-    <div id={short ? undefined : 'lyric-preview'} className={`preview ${short ? 'vertical' : ''}`} style={{ background: branding.backgroundColor }}>
-      {whole && <img className="blurfill" src={assetUrl(background!.id)} alt="" />}
-      {background?.kind === 'image' && <img className={`${drift ? 'drift' : ''} ${whole ? 'whole' : ''}`} style={whole ? undefined : fillPos} src={assetUrl(background.id)} alt="" />}
-      {background?.kind === 'video' && <video src={assetUrl(background.id)} muted loop autoPlay playsInline />}
-      {background && <div className="dim" style={{ opacity: branding.backgroundDim }} />}
-      {branding.logoAssetId && (
-        <img
-          className={`logo-img ${branding.watermarkPosition}`}
-          style={{ width: `${branding.logoSize}%` }}
-          src={assetUrl(branding.logoAssetId)}
-          alt=""
-        />
-      )}
-      {branding.watermarkText && <div className={`watermark ${branding.watermarkPosition}`} style={{ fontFamily: `"${branding.fontFamily}", sans-serif` }}>{branding.watermarkText}</div>}
-      {layout && (
-        <div className={`lyric ${branding.lyricPosition}`} style={{ transform: lyricTransform(branding, short ? 1.7778 : 0.5625), fontSize: `calc(${layout.fontPx} / ${ref} * 100cqw)`, fontFamily: `"${branding.fontFamily}", sans-serif`, ...lyricLook(branding, ref), ...lowerStyle }}>
-          {layout.lines.map((l, i) => (
-            <div key={i}>{l}</div>
-          ))}
-        </div>
-      )}
-      <Badge tone="muted">Preview</Badge>
-    </div>
   );
 }

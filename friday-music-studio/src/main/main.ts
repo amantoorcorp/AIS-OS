@@ -302,6 +302,7 @@ function registerHandlers() {
     return true;
   });
 
+  handle('audio:peaks', ({ projectId }) => studio.songPeaks(projectId));
   handle('library:get', () => ({ dir: studio.libraryDir() }));
   handle('library:open', async () => {
     const dir = studio.libraryDir();
