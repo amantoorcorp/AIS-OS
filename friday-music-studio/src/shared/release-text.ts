@@ -15,6 +15,8 @@ export interface ReleaseTextInput {
   streamUrl: string;
   /** Honest note that AI tools were used. */
   aiCredit: string;
+  /** For a mix: one `00:00 Artist - Song` line per song. Shown as chapters. Optional. */
+  tracklist?: string;
 }
 
 export interface ReleaseText {
@@ -113,6 +115,7 @@ export function buildReleaseText(input: ReleaseTextInput): ReleaseText {
 
   const body = lyricsForDescription(input.lyrics);
   let description = lines.join('\n');
+  if (input.tracklist?.trim()) description += `\n\nTracklist:\n${input.tracklist.trim()}`;
   if (body) description += `\n\n${body}`;
   const tail = [input.genreTags.trim(), input.aiCredit.trim()].filter(Boolean).join('\n');
   if (tail) description += `\n\n${tail}`;

@@ -160,3 +160,14 @@ Open **Shorts** in the left menu. Five steps on one page:
 5. **Make the Short:** 1080x1920, or 2160x3840 at 4K. Lyrics in the chosen part are re-timed to start at 0:00, the sound fades in and out, and lyric size and wrapping are set for a narrow screen. Keep text out of the bottom 20%.
 
 Font, size, colour, logo and lyric position come from Video Studio > Branding. **Releases > Short captions** writes the YouTube Shorts title and description and a TikTok caption. Shorts are saved in the Library folder as `<song> - Short 1080p - <date>.mp4`.
+
+## Mixes (several songs, one long video)
+
+Open **Mixes** in the left menu.
+
+1. Add two or more of your songs and put them in order.
+2. Choose the blend length (0 to 15 s; 4 to 8 s sounds smooth). The next song starts while the last one fades out, and every song is brought to the same loudness first (about -14 LUFS, no clipping).
+3. See the total length and the tracklist with times, ready to paste into the YouTube description as chapters.
+4. **Build the mix** makes a NEW project with the blended audio, every song's lyrics moved to where it starts (lines that begin inside a blend are dropped), the first song's picture and look, and `mix.json`. Your original songs are not changed. Style and export it in Video Studio as 1080p or 4K, or make a Short from it.
+
+A mix that includes placeholder (mock) audio stays marked mock and cannot pass release review. The Library folder gets a `tracklist.txt` for the mix, and **Releases > Release text** adds the tracklist as chapters above the lyrics.

@@ -302,6 +302,8 @@ function registerHandlers() {
     return true;
   });
 
+  handle('mix:create', ({ title, projectIds, crossfadeMs }) => studio.createMix(title, projectIds, crossfadeMs));
+  handle('mix:get', ({ projectId }) => studio.mixInfo(projectId));
   handle('audio:peaks', ({ projectId }) => studio.songPeaks(projectId));
   handle('library:get', () => ({ dir: studio.libraryDir() }));
   handle('library:open', async () => {

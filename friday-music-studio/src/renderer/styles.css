@@ -189,3 +189,9 @@ button.active { outline: 2px solid var(--accent); }
 .suggest { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); min-width: 210px; max-width: 260px; }
 .suggest.active { border-color: var(--accent); }
 .suggest small { line-height: 1.3; }
+
+.mix-list { list-style: none; padding: 0; margin: 0 0 10px; display: flex; flex-direction: column; gap: 6px; counter-reset: mix; }
+.mix-list li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); counter-increment: mix; }
+.mix-list li::before { content: counter(mix); font-weight: 700; color: var(--accent); min-width: 22px; }
+.mix-list li .row { margin-left: auto; }
+#mix-tracklist { width: 100%; font-family: ui-monospace, Menlo, monospace; }

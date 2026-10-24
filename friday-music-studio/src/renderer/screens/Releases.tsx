@@ -6,6 +6,7 @@ import { formatInZone } from '../../shared/defaults';
 import { buildReleaseText, buildShortCaptions } from '../../shared/release-text';
 import { hookLine } from '../../shared/shorts';
 import type { LyricCue, Project, ProjectDetail } from '../../shared/types';
+import type { MixInfo } from '../../shared/mix';
 
 const TEXT_KEY = 'fms.releaseText.v1';
 const TEXT_DEFAULTS = {
@@ -32,7 +33,7 @@ function copyFrom(id: string): void {
   document.execCommand('copy');
 }
 
-function ReleaseText({ project, cues }: { project: Project; cues: LyricCue[] }) {
+function ReleaseText({ project, cues, tracklist }: { project: Project; cues: LyricCue[]; tracklist: string }) {
   const [prefs, setPrefs] = useState(loadTextPrefs);
   const [artist, setArtist] = useState(project.artist || 'HEATDRIFT');
   useEffect(() => setArtist(project.artist || 'HEATDRIFT'), [project.id, project.artist]);
@@ -45,7 +46,7 @@ function ReleaseText({ project, cues }: { project: Project; cues: LyricCue[] }) 
       /* remembering is a convenience only */
     }
   };
-  const text = buildReleaseText({ artist, songTitle: project.title, lyrics: project.lyrics, subscribeUrl: prefs.subscribeUrl, streamUrl: prefs.streamUrl, genreTags: prefs.genreTags, aiCredit: prefs.aiCredit });
+  const text = buildReleaseText({ artist, songTitle: project.title, lyrics: project.lyrics, subscribeUrl: prefs.subscribeUrl, streamUrl: prefs.streamUrl, genreTags: prefs.genreTags, aiCredit: prefs.aiCredit, tracklist });
   const hook = hookLine(cues);
   const shorts = buildShortCaptions({ artist, songTitle: project.title, hook, fullVideoUrl: prefs.fullVideoUrl, genreTags: prefs.genreTags });
   return (
@@ -101,12 +102,14 @@ export function Releases({ projectId, setProjectId, open }: ScreenProps) {
   const [outputId, setOutputId] = useState<string | null>(null);
   const [checks, setChecks] = useState({ watched: false, lyrics: false, rights: false });
   const [done, setDone] = useState<string | null>(null);
+  const [mix, setMix] = useState<MixInfo | null>(null);
   const { busy, error, setError, run } = useAction();
 
   const load = useCallback(async () => {
     if (!projectId) return setDetail(null);
     const d = await api.getProject(projectId);
     setDetail(d);
+    setMix(await api.getMix(projectId));
     setOutputId((cur) => cur ?? d.renders.find((r) => r.verified)?.id ?? null);
   }, [projectId]);
 
@@ -129,7 +132,7 @@ export function Releases({ projectId, setProjectId, open }: ScreenProps) {
       <ErrorBanner error={error} onClose={() => setError(null)} />
       {p && detail && (
         <>
-          <ReleaseText project={p} cues={detail.cues} />
+          <ReleaseText project={p} cues={detail.cues} tracklist={mix?.tracklist ?? ''} />
           <Section title="1 · Final review">
             {detail.renders.length === 0 && (
               <p className="muted">

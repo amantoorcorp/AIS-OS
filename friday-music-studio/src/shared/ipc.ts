@@ -104,6 +104,8 @@ export const channels = {
   'settings:pickBinary': z.strictObject({ which: z.enum(['ffmpeg', 'ffprobe']) }),
   'settings:resetBinary': z.strictObject({ which: z.enum(['ffmpeg', 'ffprobe']) }),
   'settings:checkTools': z.undefined(),
+  'mix:create': z.strictObject({ title: shortText(200), projectIds: z.array(id).min(2).max(40), crossfadeMs: z.number().int().min(0).max(15_000) }),
+  'mix:get': z.strictObject({ projectId: id }),
   'audio:peaks': z.strictObject({ projectId: id }),
   'library:get': z.undefined(),
   'library:open': z.undefined(),

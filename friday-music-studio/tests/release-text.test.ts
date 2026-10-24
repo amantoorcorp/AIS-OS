@@ -148,3 +148,52 @@ describe('best parts of a song', () => {
     expect(suggestShortParts({ cues, peaks: [], durationMs: 120_000 })).toEqual([]);
   });
 });
+
+import { chapterTime, clampCrossfade, mergeMixCues, planMix, tracklist } from '../src/shared/mix';
+
+describe('mix planning', () => {
+  it('starts each song while the previous one fades out', () => {
+    const p = planMix([180_000, 200_000, 150_000], 6000);
+    expect(p.crossfadeMs).toBe(6000);
+    expect(p.tracks.map((t) => t.startMs)).toEqual([0, 174_000, 368_000]);
+    expect(p.totalMs).toBe(518_000); // 530 s of music minus two crossfades
+  });
+  it('keeps the crossfade inside limits', () => {
+    expect(clampCrossfade(99_000, [180_000, 180_000])).toBe(15_000);
+    expect(clampCrossfade(10_000, [20_000, 180_000])).toBe(6800); // at most about a third of the shortest song
+    expect(clampCrossfade(-5, [60_000])).toBe(0);
+    expect(planMix([], 5000).totalMs).toBe(0);
+  });
+  it('moves lyrics to where each song starts and removes overlaps', () => {
+    const c = (id: string, s: number, e: number, t: string) => ({ id, startMs: s, endMs: e, text: t });
+    let n = 0;
+    const merged = mergeMixCues(
+      [
+        { startMs: 0, endMs: 100_000, cues: [c('a', 1000, 4000, 'one'), c('b', 96_000, 100_000, 'tail line')] },
+        { startMs: 94_000, endMs: 190_000, cues: [c('c', 1000, 5000, 'two'), c('d', 90_000, 99_000, 'end')] },
+      ],
+      () => `id${n++}`,
+    );
+    expect(merged.map((m) => m.text)).toEqual(['one', 'two', 'end']); // 'tail line' started inside the blend and is dropped
+    expect(merged.map((m) => [m.startMs, m.endMs])).toEqual([[1000, 4000], [95_000, 99_000], [184_000, 190_000]]);
+    for (let i = 0; i < merged.length - 1; i++) expect(merged[i]!.endMs).toBeLessThanOrEqual(merged[i + 1]!.startMs);
+  });
+  it('writes a tracklist YouTube can turn into chapters', () => {
+    expect(chapterTime(61_000, false)).toBe('01:01');
+    expect(chapterTime(3_725_000, true)).toBe('1:02:05');
+    expect(tracklist([{ title: 'A', artist: 'HEATDRIFT', startMs: 0 }, { title: 'B', startMs: 174_000 }], 400_000)).toBe('00:00 HEATDRIFT - A\n02:54 B');
+    expect(tracklist([{ title: 'A', startMs: 0 }, { title: 'B', startMs: 3_600_000 }], 4_000_000)).toBe('0:00:00 A\n1:00:00 B');
+  });
+});
+
+describe('mix description', () => {
+  it('adds the tracklist as chapters before the lyrics', () => {
+    const r = buildReleaseText({
+      artist: 'HEATDRIFT', songTitle: 'Deep House Mix', lyrics: '[Song A]\nline one', genreTags: '#deephouse', subscribeUrl: '', streamUrl: '', aiCredit: 'Made with AI tools.',
+      tracklist: '00:00 HEATDRIFT - A\n03:30 HEATDRIFT - B\n07:10 HEATDRIFT - C',
+    });
+    const i = r.description.indexOf('Tracklist:\n00:00 HEATDRIFT - A');
+    expect(i).toBeGreaterThan(0);
+    expect(r.description.indexOf('line one')).toBeGreaterThan(i); // chapters come before the lyrics
+  });
+});

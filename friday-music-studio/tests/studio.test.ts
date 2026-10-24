@@ -436,4 +436,37 @@ describe('generation approval (mock provider)', () => {
     expect(db, r.stderr?.slice(-200)).not.toBeNull();
     expect(db![1] === 'inf' ? 99 : Number(db![1])).toBeGreaterThan(30); // same pixels: the crop window is where the maths puts it
   });
+
+  it('blends three songs into one new project with merged lyrics and a tracklist', async () => {
+    const ids: string[] = [];
+    for (const [i, hz] of [440, 550, 660].entries()) {
+      const p = studio.createProject(`Mix Song ${i + 1}`, 'HEATDRIFT');
+      const f = path.join(fixtures, `mix${i}.mp3`);
+      await synthesizeTone('ffmpeg', f, 10, hz);
+      await studio.importAsset(p.id, 'audio', f);
+      await studio.importAsset(p.id, 'image', path.join(fixtures, 'bg.png'));
+      studio.updateProject(p.id, { lyrics: `lyric of song ${i + 1}` });
+      studio.saveCues(p.id, [
+        { id: `0000000${i}-0000-4000-8000-000000000001`, startMs: 1000, endMs: 3000, text: `first of ${i + 1}` },
+        { id: `0000000${i}-0000-4000-8000-000000000002`, startMs: 8500, endMs: 9800, text: `last of ${i + 1}` },
+      ]);
+      ids.push(p.id);
+    }
+    const { project, mix } = await studio.createMix('My Mix', ids, 2000);
+    const d = studio.getDetail(project.id);
+    const audio = d.assets.find((a) => a.id === d.project.chosenAudioAssetId)!;
+    expect(audio.durationSec!).toBeGreaterThan(25.5); // 30 s of music minus two 2 s blends = 26 s
+    expect(audio.durationSec!).toBeLessThan(26.6);
+    expect(audio.source).toBe('local_import');
+    expect(mix.tracks.map((t) => t.startMs)).toEqual([0, 8000, 16000]);
+    expect(mix.tracklist).toBe('00:00 HEATDRIFT - Mix Song 1\n00:08 HEATDRIFT - Mix Song 2\n00:16 HEATDRIFT - Mix Song 3');
+    // Song 1's last line (8.5 s) starts inside the blend into song 2 (8 s), so it is dropped; the other lines are moved.
+    expect(d.cues.map((c) => [c.text, c.startMs])).toEqual([['first of 1', 1000], ['first of 2', 9000], ['first of 3', 17000], ['last of 3', 24500]]);
+    for (let i = 0; i < d.cues.length - 1; i++) expect(d.cues[i]!.endMs).toBeLessThanOrEqual(d.cues[i + 1]!.startMs);
+    expect(d.project.lyrics).toContain('[Mix Song 2]\nlyric of song 2');
+    expect(d.project.backgroundAssetId).not.toBeNull(); // the first song's picture came along
+    expect((await studio.mixInfo(project.id))?.title).toBe('My Mix');
+    expect(await studio.mixInfo(ids[0]!)).toBeNull();
+    await expect(studio.createMix('x', [ids[0]!], 1000)).rejects.toThrow(/at least two/);
+  }, 120_000);
 });

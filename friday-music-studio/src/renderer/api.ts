@@ -1,5 +1,6 @@
 // Typed wrapper over the preload bridge. Unwraps { ok, data | error } replies.
 import type { FridayApi } from '../preload/preload';
+import type { MixInfo } from '../shared/mix';
 import type { IpcResult } from '../shared/ipc';
 import type {
   Approval,
@@ -59,6 +60,8 @@ export const api = {
   pickBinary: (which: 'ffmpeg' | 'ffprobe') => u<Settings>(b().pickBinary(which)),
   resetBinary: (which: 'ffmpeg' | 'ffprobe') => u<Settings>(b().resetBinary(which)),
   checkTools: () => u<ToolStatus>(b().checkTools()),
+  createMix: (title: string, projectIds: string[], crossfadeMs: number) => u<{ project: Project; mix: MixInfo }>(b().createMix(title, projectIds, crossfadeMs)),
+  getMix: (projectId: string) => u<MixInfo | null>(b().getMix(projectId)),
   songPeaks: (id: string) => u<{ peaks: number[]; durationMs: number }>(b().songPeaks(id)),
   getLibrary: () => u<{ dir: string }>(b().getLibrary()),
   openLibrary: () => u<boolean>(b().openLibrary()),

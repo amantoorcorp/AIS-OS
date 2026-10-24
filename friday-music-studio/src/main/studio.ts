@@ -37,6 +37,8 @@ import { findModel, findWhisperCli, openEars } from './transcribe';
 import { needsUpscale, upscalePicture } from './upscale';
 import { clampShort, cuesForWindow, SHORT_HEIGHT, SHORT_WIDTH, type ShortSpec } from '../shared/shorts';
 import { audioPeaks } from './peaks';
+import { mixAudio } from './mix';
+import { MIX_MAX_SONGS, MIX_MIN_SONGS, mergeMixCues, planMix, tracklist, type MixInfo } from '../shared/mix';
 
 const EXT: Record<AssetKind, Record<string, string>> = {
   audio: { '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.flac': 'audio/flac', '.ogg': 'audio/ogg' },
@@ -592,6 +594,88 @@ export class StudioService {
     return { peaks: await audioPeaks(this.ffmpegPath(), audio.storedPath, 900), durationMs: Math.round((audio.asset.durationSec ?? 0) * 1000) };
   }
 
+  // ---------- long mixes: several songs blended into one video ----------
+
+  /** The mix recipe of a project made with createMix, or null for an ordinary project. */
+  async mixInfo(projectId: string): Promise<MixInfo | null> {
+    this.requireProject(projectId);
+    try {
+      return JSON.parse(await fs.readFile(path.join(this.projectDir(projectId), 'mix.json'), 'utf8')) as MixInfo;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Blends the chosen songs (each project's chosen audio, in the given order) with crossfades into a NEW project:
+   * one long audio file, every song's lyrics moved to where it starts, the first song's picture and look,
+   * and a tracklist. The new project is then styled and exported like any other.
+   */
+  async createMix(title: string, projectIds: string[], crossfadeMs: number): Promise<{ project: Project; mix: MixInfo }> {
+    if (projectIds.length < MIX_MIN_SONGS) throw new Error('Choose at least two songs.');
+    if (projectIds.length > MIX_MAX_SONGS) throw new Error(`A mix can hold at most ${MIX_MAX_SONGS} songs.`);
+    const songs = projectIds.map((id) => {
+      const project = this.requireProject(id);
+      if (!project.chosenAudioAssetId) throw new Error(`"${project.title}" has no song yet.`);
+      const audio = this.requireAsset(id, project.chosenAudioAssetId, ['audio']);
+      if (!audio.asset.durationSec) throw new Error(`"${project.title}" has an audio file with unknown length. Import it again.`);
+      return { project, audio, cues: this.store.listCues(id) };
+    });
+    const plan = planMix(songs.map((s) => Math.round(s.audio.asset.durationSec! * 1000)), crossfadeMs);
+    const first = songs[0]!.project;
+    const mixTitle = title.trim() || `Mix of ${songs.length} songs`;
+
+    const mix = this.store.createProject({ title: mixTitle, artist: first.artist, branding: first.branding, timezone: first.releaseTimezone });
+    const dir = this.projectDir(mix.id);
+    const assets = path.join(dir, 'assets');
+    await fs.mkdir(assets, { recursive: true });
+    try {
+      const audioId = randomUUID();
+      const storedPath = path.join(assets, `${audioId}.m4a`);
+      await mixAudio(this.ffmpegPath(), songs.map((s) => s.audio.storedPath), plan.crossfadeMs / 1000, storedPath);
+      const probe = await probeMedia(this.ffprobePath(), storedPath);
+      if (!probe.audioCodec || !probe.durationSec) throw new Error('The blended audio could not be read back.');
+      const st = await fs.stat(storedPath);
+      // A mix containing placeholder (mock) audio stays marked as mock, so it can never pass release review.
+      const anyMock = songs.some((s) => s.audio.asset.source === 'mock_provider');
+      this.store.addAsset({ id: audioId, projectId: mix.id, kind: 'audio', source: anyMock ? 'mock_provider' : 'local_import', providerId: anyMock ? 'mock' : null, originalName: `${mixTitle}.m4a`, storedPath, mime: 'audio/mp4', sizeBytes: st.size, durationSec: probe.durationSec, width: null, height: null });
+      this.store.updateProject(mix.id, { chosenAudioAssetId: audioId });
+
+      // The first song's picture becomes the mix's background (it can be changed in Video Studio).
+      if (first.backgroundAssetId) {
+        const bg = this.store.getAssetPath(first.backgroundAssetId);
+        if (bg && bg.asset.kind === 'image') {
+          const bgId = randomUUID();
+          const bgPath = path.join(assets, `${bgId}${path.extname(bg.storedPath)}`);
+          await fs.copyFile(bg.storedPath, bgPath);
+          this.store.addAsset({ id: bgId, projectId: mix.id, kind: 'image', source: 'local_import', providerId: null, originalName: bg.asset.originalName, storedPath: bgPath, mime: bg.asset.mime, sizeBytes: bg.asset.sizeBytes, durationSec: null, width: bg.asset.width, height: bg.asset.height });
+          this.store.updateProject(mix.id, { backgroundAssetId: bgId });
+        }
+      }
+
+      const cues = mergeMixCues(songs.map((s, i) => ({ startMs: plan.tracks[i]!.startMs, endMs: plan.tracks[i]!.endMs, cues: s.cues })), () => randomUUID());
+      this.store.replaceCues(mix.id, cues);
+      const lyrics = songs.map((s) => `[${s.project.title}]\n${s.project.lyrics.trim()}`).join('\n\n');
+      const rights = songs.map((s) => `${s.project.title}: ${s.project.rightsNotes.trim() || 'no rights notes'}`).join('\n');
+      this.store.updateProject(mix.id, { lyrics, rightsNotes: rights });
+
+      const info: MixInfo = {
+        title: mixTitle,
+        crossfadeMs: plan.crossfadeMs,
+        totalMs: plan.totalMs,
+        tracks: songs.map((s, i) => ({ projectId: s.project.id, title: s.project.title, artist: s.project.artist, startMs: plan.tracks[i]!.startMs, endMs: plan.tracks[i]!.endMs, durationMs: plan.tracks[i]!.durationMs })),
+        tracklist: tracklist(songs.map((s, i) => ({ title: s.project.title, artist: s.project.artist, startMs: plan.tracks[i]!.startMs })), plan.totalMs),
+        createdAt: new Date().toISOString(),
+      };
+      await fs.writeFile(path.join(dir, 'mix.json'), JSON.stringify(info, null, 2), 'utf8');
+      return { project: this.requireProject(mix.id), mix: info };
+    } catch (e) {
+      this.store.archiveProject(mix.id); // do not leave a half-made project behind
+      await fs.rm(dir, { recursive: true, force: true });
+      throw e;
+    }
+  }
+
   // ---------- library: one visible folder with everything ----------
 
   /** The app keeps its own copy in the data folder; this mirror is what the user opens and uploads from. */
@@ -633,6 +717,8 @@ export class StudioService {
       }
 
       await fs.writeFile(path.join(dir, 'lyrics.txt'), `${project.lyrics.trim()}\n`, 'utf8');
+      const mixInfo = await this.mixInfo(project.id);
+      if (mixInfo) await fs.writeFile(path.join(dir, 'tracklist.txt'), `${mixInfo.tracklist}\n`, 'utf8');
       const cues = this.store.listCues(project.id);
       if (cues.length) await fs.writeFile(path.join(dir, 'lyrics.srt'), cuesToSrt(cues), 'utf8');
       for (const assetId of [project.chosenAudioAssetId, project.backgroundAssetId]) {

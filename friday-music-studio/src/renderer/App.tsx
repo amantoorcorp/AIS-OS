@@ -5,9 +5,10 @@ import { SongStudio } from './screens/SongStudio';
 import { VideoStudio } from './screens/VideoStudio';
 import { Releases } from './screens/Releases';
 import { Shorts } from './screens/Shorts';
+import { Mixes } from './screens/Mixes';
 import { SettingsScreen } from './screens/Settings';
 
-export type Screen = 'dashboard' | 'connections' | 'song' | 'video' | 'shorts' | 'releases' | 'settings';
+export type Screen = 'dashboard' | 'connections' | 'song' | 'video' | 'shorts' | 'mixes' | 'releases' | 'settings';
 
 const NAV: Array<[Screen, string]> = [
   ['dashboard', 'Dashboard'],
@@ -15,6 +16,7 @@ const NAV: Array<[Screen, string]> = [
   ['song', 'Song Studio'],
   ['video', 'Video Studio'],
   ['shorts', 'Shorts'],
+  ['mixes', 'Mixes'],
   ['releases', 'Releases'],
   ['settings', 'Settings'],
 ];
@@ -49,6 +51,7 @@ export function App() {
         {screen === 'song' && <SongStudio {...props} />}
         {screen === 'video' && <VideoStudio {...props} />}
         {screen === 'shorts' && <Shorts {...props} />}
+        {screen === 'mixes' && <Mixes {...props} />}
         {screen === 'releases' && <Releases {...props} />}
         {screen === 'settings' && <SettingsScreen />}
       </main>
