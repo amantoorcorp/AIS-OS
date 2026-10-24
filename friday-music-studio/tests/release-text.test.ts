@@ -154,7 +154,7 @@ import { chapterTime, clampCrossfade, mergeMixCues, planMix, tracklist } from '.
 describe('mix planning', () => {
   it('starts each song while the previous one fades out', () => {
     const p = planMix([180_000, 200_000, 150_000], 6000);
-    expect(p.crossfadeMs).toBe(6000);
+    expect(p.fadesMs).toEqual([0, 6000, 6000]);
     expect(p.tracks.map((t) => t.startMs)).toEqual([0, 174_000, 368_000]);
     expect(p.totalMs).toBe(518_000); // 530 s of music minus two crossfades
   });
@@ -195,5 +195,55 @@ describe('mix description', () => {
     const i = r.description.indexOf('Tracklist:\n00:00 HEATDRIFT - A');
     expect(i).toBeGreaterThan(0);
     expect(r.description.indexOf('line one')).toBeGreaterThan(i); // chapters come before the lyrics
+  });
+});
+
+import { detectBpm } from '../src/main/tempo';
+import { execFileSync as exec2 } from 'node:child_process';
+import { mkdtempSync as mk2, rmSync as rm2 } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join as join2 } from 'node:path';
+import { autoFadeMs, introOutro, tempoRatio } from '../src/shared/mix';
+
+describe('tempo detection', () => {
+  const dir = mk2(join2(tmpdir(), 'fms-bpm-'));
+  const kick = (bpm: number, seconds = 40) => {
+    const f = join2(dir, `k${bpm}.wav`);
+    // A kick-like thump every beat: a decaying 60 Hz sine restarted on each beat.
+    exec2('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', `aevalsrc=0.8*sin(2*PI*60*mod(t\\,${(60 / bpm).toFixed(6)}))*exp(-18*mod(t\\,${(60 / bpm).toFixed(6)})):s=22050:d=${seconds}`, f]);
+    return f;
+  };
+  it.each([118, 124, 128])('finds %i BPM from a steady kick', async (bpm) => {
+    const t = await detectBpm('ffmpeg', kick(bpm));
+    expect(t).not.toBeNull();
+    expect(Math.abs(t!.bpm - bpm)).toBeLessThan(1.5);
+    expect(t!.confidence).toBeGreaterThan(1.5);
+  });
+  it('says nothing about a clip that is too short', async () => {
+    expect(await detectBpm('ffmpeg', kick(124, 5))).toBeNull();
+    rm2(dir, { recursive: true, force: true });
+  });
+});
+
+describe('auto blend rules', () => {
+  it('only stretches songs that are close in tempo, at most 6%', () => {
+    expect(tempoRatio(124, 122)).toBeCloseTo(124 / 122, 5);
+    expect(tempoRatio(124, 100)).toBe(1);
+    expect(tempoRatio(null, 122)).toBe(1);
+    expect(tempoRatio(124, null)).toBe(1);
+  });
+  it('picks a blend as long as the quiet parts it joins, between 4 and 12 seconds', () => {
+    expect(autoFadeMs(30_000, 20_000)).toBe(12_000);
+    expect(autoFadeMs(2000, 9000)).toBe(4000);
+    expect(autoFadeMs(7000, 9000)).toBe(6300);
+  });
+  it('measures the intro and outro from loudness', () => {
+    // 100 buckets over 100 s: quiet for 10 s, loud, quiet for the last 15 s.
+    const peaks = Array.from({ length: 100 }, (_, i) => (i < 10 || i >= 85 ? 0.05 : 0.9));
+    const { introMs, outroMs } = introOutro(peaks, 100_000);
+    expect(introMs).toBeGreaterThanOrEqual(9000);
+    expect(introMs).toBeLessThanOrEqual(11_000);
+    expect(outroMs).toBeGreaterThanOrEqual(14_000);
+    expect(outroMs).toBeLessThanOrEqual(16_000);
   });
 });

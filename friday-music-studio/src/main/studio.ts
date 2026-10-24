@@ -632,7 +632,7 @@ export class StudioService {
     try {
       const audioId = randomUUID();
       const storedPath = path.join(assets, `${audioId}.m4a`);
-      await mixAudio(this.ffmpegPath(), songs.map((s) => s.audio.storedPath), plan.crossfadeMs / 1000, storedPath);
+      await mixAudio(this.ffmpegPath(), songs.map((s) => s.audio.storedPath), (plan.fadesMs[1] ?? 0) / 1000, storedPath);
       const probe = await probeMedia(this.ffprobePath(), storedPath);
       if (!probe.audioCodec || !probe.durationSec) throw new Error('The blended audio could not be read back.');
       const st = await fs.stat(storedPath);
@@ -661,9 +661,10 @@ export class StudioService {
 
       const info: MixInfo = {
         title: mixTitle,
-        crossfadeMs: plan.crossfadeMs,
+        fadesMs: plan.fadesMs,
+        auto: false,
         totalMs: plan.totalMs,
-        tracks: songs.map((s, i) => ({ projectId: s.project.id, title: s.project.title, artist: s.project.artist, startMs: plan.tracks[i]!.startMs, endMs: plan.tracks[i]!.endMs, durationMs: plan.tracks[i]!.durationMs })),
+        tracks: songs.map((s, i) => ({ projectId: s.project.id, title: s.project.title, artist: s.project.artist, startMs: plan.tracks[i]!.startMs, endMs: plan.tracks[i]!.endMs, durationMs: plan.tracks[i]!.durationMs, bpm: null, tempoRatio: 1 })),
         tracklist: tracklist(songs.map((s, i) => ({ title: s.project.title, artist: s.project.artist, startMs: plan.tracks[i]!.startMs })), plan.totalMs),
         createdAt: new Date().toISOString(),
       };

@@ -13,32 +13,73 @@ const MAX_SHARE_OF_SONG = 0.34;
 export interface MixTrackPlan {
   startMs: number;
   endMs: number;
+  /** Length of this song in the mix, after any tempo change. */
   durationMs: number;
 }
 
 export interface MixPlan {
-  crossfadeMs: number;
+  /** Blend length before each song after the first, in ms. Index 0 is unused (0). */
+  fadesMs: number[];
   tracks: MixTrackPlan[];
   totalMs: number;
 }
 
-/** Keeps the crossfade inside sensible limits for these songs. */
-export function clampCrossfade(crossfadeMs: number, durationsMs: number[]): number {
-  const shortest = durationsMs.length ? Math.min(...durationsMs) : 0;
-  const cap = Math.min(MIX_MAX_CROSSFADE_MS, Math.floor(shortest * MAX_SHARE_OF_SONG));
-  return Math.max(0, Math.min(Math.round(Number.isFinite(crossfadeMs) ? crossfadeMs : 0), cap));
+/** Keeps one crossfade inside sensible limits for the two songs it joins. */
+export function clampFade(fadeMs: number, aMs: number, bMs: number): number {
+  const cap = Math.min(MIX_MAX_CROSSFADE_MS, Math.floor(Math.min(aMs, bMs) * MAX_SHARE_OF_SONG));
+  return Math.max(0, Math.min(Math.round(Number.isFinite(fadeMs) ? fadeMs : 0), cap));
 }
 
-export function planMix(durationsMs: number[], crossfadeMs: number): MixPlan {
-  const x = clampCrossfade(crossfadeMs, durationsMs);
+/** Keeps the crossfade inside sensible limits for these songs (the shortest song sets the cap). */
+export function clampCrossfade(crossfadeMs: number, durationsMs: number[]): number {
+  const shortest = durationsMs.length ? Math.min(...durationsMs) : 0;
+  return clampFade(crossfadeMs, shortest, shortest);
+}
+
+/**
+ * Where each song starts. Each song after the first starts while the previous one fades out, so it starts at
+ * (end of the previous song) minus (the blend between them). fadeMs is one length for every blend, or one per song.
+ */
+export function planMix(durationsMs: number[], fadeMs: number | number[]): MixPlan {
+  const fades = durationsMs.map((d, i) => {
+    if (i === 0) return 0;
+    const want = Array.isArray(fadeMs) ? (fadeMs[i] ?? 0) : fadeMs;
+    return clampFade(want, durationsMs[i - 1]!, d);
+  });
   let at = 0;
   const tracks = durationsMs.map((d, i) => {
-    const startMs = i === 0 ? 0 : at;
+    const startMs = i === 0 ? 0 : at - fades[i]!;
     const endMs = startMs + d;
-    at = endMs - x;
+    at = endMs;
     return { startMs, endMs, durationMs: d };
   });
-  return { crossfadeMs: x, tracks, totalMs: tracks.length ? tracks[tracks.length - 1]!.endMs : 0 };
+  return { fadesMs: fades, tracks, totalMs: tracks.length ? tracks[tracks.length - 1]!.endMs : 0 };
+}
+
+/** How quiet the start and end of a song are: time until it gets going, and time it spends winding down. */
+export function introOutro(peaks: number[], durationMs: number): { introMs: number; outroMs: number } {
+  if (peaks.length < 8 || durationMs <= 0) return { introMs: 0, outroMs: 0 };
+  const sorted = [...peaks].sort((a, b) => a - b);
+  const thr = sorted[Math.floor(sorted.length * 0.75)]! * 0.5;
+  const per = durationMs / peaks.length;
+  const smooth = (i: number) => (peaks[Math.max(0, i - 1)]! + peaks[i]! + peaks[Math.min(peaks.length - 1, i + 1)]!) / 3;
+  let first = 0;
+  while (first < peaks.length - 1 && smooth(first) < thr) first++;
+  let last = peaks.length - 1;
+  while (last > first && smooth(last) < thr) last--;
+  return { introMs: Math.round(first * per), outroMs: Math.round((peaks.length - 1 - last) * per) };
+}
+
+/** A blend as long as the quiet parts it joins (the outgoing outro and the incoming intro), between 4 and 12 seconds. */
+export function autoFadeMs(outroMs: number, introMs: number): number {
+  return Math.max(4000, Math.min(12_000, Math.round(Math.min(outroMs, introMs) * 0.9)));
+}
+
+/** Stretch needed to bring a song to the previous song's tempo. 1 = leave it alone (too far apart, or unsure). */
+export function tempoRatio(prevBpm: number | null, bpm: number | null, maxStretch = 0.06): number {
+  if (!prevBpm || !bpm) return 1;
+  const r = prevBpm / bpm;
+  return Math.abs(r - 1) <= maxStretch ? r : 1;
 }
 
 /** Lyric cues of every song, moved to where that song starts in the mix, with no cue overlapping the next. */
@@ -80,9 +121,11 @@ export function tracklist(tracks: { title: string; artist?: string; startMs: num
 
 export interface MixInfo {
   title: string;
-  crossfadeMs: number;
+  /** Blend lengths before each song after the first. */
+  fadesMs: number[];
+  auto: boolean;
   totalMs: number;
-  tracks: { projectId: string; title: string; artist: string; startMs: number; endMs: number; durationMs: number }[];
+  tracks: { projectId: string; title: string; artist: string; startMs: number; endMs: number; durationMs: number; bpm: number | null; tempoRatio: number }[];
   tracklist: string;
   createdAt: string;
 }
