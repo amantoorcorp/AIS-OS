@@ -49,7 +49,10 @@ const api = {
   pickBinary: (which: 'ffmpeg' | 'ffprobe') => call('settings:pickBinary', { which }),
   resetBinary: (which: 'ffmpeg' | 'ffprobe') => call('settings:resetBinary', { which }),
   checkTools: () => call('settings:checkTools'),
-  createMix: (title: string, projectIds: string[], crossfadeMs: number) => call('mix:create', { title, projectIds, crossfadeMs }),
+  analyzeMix: (projectIds: string[]) => call('mix:analyze', { projectIds }),
+  pickMixPicture: () => call('mix:pickPicture'),
+  createMix: (title: string, projectIds: string[], crossfadeMs: number, auto: boolean, matchTempo: boolean, picture: { type: 'first' } | { type: 'preset'; id: string } | { type: 'upload'; token: string }) =>
+    call('mix:create', { title, projectIds, crossfadeMs, auto, matchTempo, picture }),
   getMix: (projectId: string) => call('mix:get', { projectId }),
   songPeaks: (projectId: string) => call('audio:peaks', { projectId }),
   getLibrary: () => call('library:get'),

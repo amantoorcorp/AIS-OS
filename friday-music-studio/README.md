@@ -163,11 +163,17 @@ Font, size, colour, logo and lyric position come from Video Studio > Branding. *
 
 ## Mixes (several songs, one long video)
 
-Open **Mixes** in the left menu.
+Open **Mixes** in the left menu. Everything happens on this one page:
 
-1. Add two or more of your songs and put them in order.
-2. Choose the blend length (0 to 15 s; 4 to 8 s sounds smooth). The next song starts while the last one fades out, and every song is brought to the same loudness first (about -14 LUFS, no clipping).
-3. See the total length and the tracklist with times, ready to paste into the YouTube description as chapters.
-4. **Build the mix** makes a NEW project with the blended audio, every song's lyrics moved to where it starts (lines that begin inside a blend are dropped), the first song's picture and look, and `mix.json`. Your original songs are not changed. Style and export it in Video Studio as 1080p or 4K, or make a Short from it.
+1. **Pick the songs** in order.
+2. **How they blend.** Press **Analyse songs** (a few seconds per song). Then:
+   - **Auto blend:** each blend is as long as the quiet end of one song and the quiet start of the next, between 4 and 12 seconds, so a loud ending is not cut and a long fade is not rushed.
+   - **Match tempo:** each song is sped up or slowed down a little, at most 6% and with the pitch unchanged, to match the song before it. Songs more than 6% apart, or with an unsure tempo, are left alone. Lyric times are scaled the same way. (Measured on a steady kick track within 1.5 BPM; on your seven songs it reads 118 to 122.5 BPM.)
+   - Or switch Auto off and set one blend length by hand (0 to 15 s).
+   - Every song is brought to the same loudness first (about -14 LUFS, no clipping).
+3. **The picture:** the first song's picture, one of the 12 presets, or **Upload a picture**.
+4. **Length and tracklist:** total length and a tracklist you can paste into YouTube as chapters.
+5. **Build the mix** makes a NEW project with the blended audio and every song's lyrics moved to where it starts (lines that begin inside a blend are dropped). Your original songs are not changed.
+6. **Style and export** appears right below, as Video Studio for the new mix: look, fonts, logo, lyric timing, 1080p or 4K export.
 
-A mix that includes placeholder (mock) audio stays marked mock and cannot pass release review. The Library folder gets a `tracklist.txt` for the mix, and **Releases > Release text** adds the tracklist as chapters above the lyrics.
+A mix that includes placeholder (mock) audio stays marked mock and cannot pass release review. The Library folder gets a `tracklist.txt`, and **Releases > Release text** adds the tracklist as chapters above the lyrics.

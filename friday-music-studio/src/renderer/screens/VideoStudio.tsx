@@ -10,7 +10,7 @@ import type { Branding, LyricCue, ProjectDetail, RenderProgressEvent } from '../
 
 const newId = () => crypto.randomUUID();
 
-export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
+export function VideoStudio({ projectId, setProjectId, open, embedded }: ScreenProps & { embedded?: boolean }) {
   const [detail, setDetail] = useState<ProjectDetail | null>(null);
   const [cues, setCues] = useState<LyricCue[]>([]);
   const [savedCues, setSavedCues] = useState('[]');
@@ -154,9 +154,9 @@ export function VideoStudio({ projectId, setProjectId, open }: ScreenProps) {
   const rendering = render?.status === 'running';
 
   return (
-    <div className="screen wide">
-      <h1>Video Studio</h1>
-      <ProjectPicker projectId={projectId} setProjectId={setProjectId} />
+    <div className={embedded ? 'embedded-studio' : 'screen wide'}>
+      {!embedded && <h1>Video Studio</h1>}
+      {!embedded && <ProjectPicker projectId={projectId} setProjectId={setProjectId} />}
       <ErrorBanner error={error} onClose={() => setError(null)} />
 
       <div className="video-layout">

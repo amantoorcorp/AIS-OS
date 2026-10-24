@@ -195,3 +195,7 @@ button.active { outline: 2px solid var(--accent); }
 .mix-list li::before { content: counter(mix); font-weight: 700; color: var(--accent); min-width: 22px; }
 .mix-list li .row { margin-left: auto; }
 #mix-tracklist { width: 100%; font-family: ui-monospace, Menlo, monospace; }
+
+.preset.active { outline: 2px solid var(--accent); }
+.check { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+.embedded-studio { margin-top: 8px; }

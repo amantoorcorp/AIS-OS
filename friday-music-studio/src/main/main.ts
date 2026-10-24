@@ -302,7 +302,13 @@ function registerHandlers() {
     return true;
   });
 
-  handle('mix:create', ({ title, projectIds, crossfadeMs }) => studio.createMix(title, projectIds, crossfadeMs));
+  handle('mix:analyze', ({ projectIds }) => studio.analyzeSongs(projectIds));
+  handle('mix:pickPicture', async () => {
+    const res = await dialog.showOpenDialog(mainWindow!, { title: 'Choose the picture for the mix', properties: ['openFile'], filters: [{ name: 'image', extensions: IMPORT_EXTENSIONS.image }] });
+    if (res.canceled || !res.filePaths[0]) return null;
+    return studio.holdMixPicture(res.filePaths[0]);
+  });
+  handle('mix:create', ({ title, projectIds, crossfadeMs, auto, matchTempo, picture }) => studio.createMix(title, projectIds, { crossfadeMs, auto, matchTempo, picture }));
   handle('mix:get', ({ projectId }) => studio.mixInfo(projectId));
   handle('audio:peaks', ({ projectId }) => studio.songPeaks(projectId));
   handle('library:get', () => ({ dir: studio.libraryDir() }));

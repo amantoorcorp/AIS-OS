@@ -452,7 +452,7 @@ describe('generation approval (mock provider)', () => {
       ]);
       ids.push(p.id);
     }
-    const { project, mix } = await studio.createMix('My Mix', ids, 2000);
+    const { project, mix } = await studio.createMix('My Mix', ids, { crossfadeMs: 2000, auto: false, matchTempo: false, picture: { type: 'first' } });
     const d = studio.getDetail(project.id);
     const audio = d.assets.find((a) => a.id === d.project.chosenAudioAssetId)!;
     expect(audio.durationSec!).toBeGreaterThan(25.5); // 30 s of music minus two 2 s blends = 26 s
@@ -467,6 +467,37 @@ describe('generation approval (mock provider)', () => {
     expect(d.project.backgroundAssetId).not.toBeNull(); // the first song's picture came along
     expect((await studio.mixInfo(project.id))?.title).toBe('My Mix');
     expect(await studio.mixInfo(ids[0]!)).toBeNull();
-    await expect(studio.createMix('x', [ids[0]!], 1000)).rejects.toThrow(/at least two/);
+    await expect(studio.createMix('x', [ids[0]!], { crossfadeMs: 1000, auto: false, matchTempo: false, picture: { type: 'first' } })).rejects.toThrow(/at least two/);
   }, 120_000);
+
+  it('auto blend: matches tempo, blends by intro/outro, scales the lyrics, and takes a preset picture', async () => {
+    const kick = (file: string, bpm: number) => {
+      const beat = (60 / bpm).toFixed(6);
+      execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', `aevalsrc=0.8*sin(2*PI*60*mod(t\\,${beat}))*exp(-18*mod(t\\,${beat})):s=22050:d=40`, '-c:a', 'libmp3lame', file]);
+    };
+    const ids: string[] = [];
+    for (const [i, bpm] of [120, 124].entries()) {
+      const p = studio.createProject(`Tempo Song ${i + 1}`, 'HEATDRIFT');
+      const f = path.join(fixtures, `tempo${i}.mp3`);
+      kick(f, bpm);
+      await studio.importAsset(p.id, 'audio', f);
+      studio.saveCues(p.id, [{ id: `1111111${i}-0000-4000-8000-000000000001`, startMs: 10_000, endMs: 12_000, text: `line ${i + 1}` }]);
+      ids.push(p.id);
+    }
+    const analysis = await studio.analyzeSongs(ids);
+    expect(Math.abs(analysis[0]!.bpm! - 120)).toBeLessThan(1.5);
+    expect(Math.abs(analysis[1]!.bpm! - 124)).toBeLessThan(1.5);
+    const { project, mix } = await studio.createMix('Tempo Mix', ids, { crossfadeMs: 6000, auto: true, matchTempo: true, picture: { type: 'preset', id: 'ocean' } });
+    expect(mix.auto).toBe(true);
+    expect(mix.tracks[0]!.tempoRatio).toBe(1);
+    expect(mix.tracks[1]!.tempoRatio).toBeCloseTo(120 / 124, 1); // song 2 is slowed a little to song 1's tempo
+    expect(mix.fadesMs[1]).toBeGreaterThanOrEqual(4000);
+    expect(mix.fadesMs[1]).toBeLessThanOrEqual(12_000);
+    const d = studio.getDetail(project.id);
+    expect(d.assets.find((a) => a.id === d.project.backgroundAssetId)?.originalName).toBe('Preset: Ocean sunset');
+    const expectedStart = mix.tracks[1]!.startMs;
+    expect(d.cues[1]!.startMs).toBeCloseTo(expectedStart + 10_000 / mix.tracks[1]!.tempoRatio, -2); // lyric time stretched with the song
+    const audio = d.assets.find((a) => a.id === d.project.chosenAudioAssetId)!;
+    expect(Math.abs(audio.durationSec! * 1000 - mix.totalMs)).toBeLessThan(400);
+  }, 180_000);
 });

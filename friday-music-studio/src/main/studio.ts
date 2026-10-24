@@ -38,7 +38,8 @@ import { needsUpscale, upscalePicture } from './upscale';
 import { clampShort, cuesForWindow, SHORT_HEIGHT, SHORT_WIDTH, type ShortSpec } from '../shared/shorts';
 import { audioPeaks } from './peaks';
 import { mixAudio } from './mix';
-import { MIX_MAX_SONGS, MIX_MIN_SONGS, mergeMixCues, planMix, tracklist, type MixInfo } from '../shared/mix';
+import { introOutro, MIX_MAX_SONGS, MIX_MIN_SONGS, mergeMixCues, planWithAnalysis, tracklist, type MixInfo, type MixOptions, type SongAnalysis } from '../shared/mix';
+import { detectBpm } from './tempo';
 
 const EXT: Record<AssetKind, Record<string, string>> = {
   audio: { '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.flac': 'audio/flac', '.ogg': 'audio/ogg' },
@@ -61,6 +62,8 @@ interface PendingGeneration {
   count: number;
   expiresAt: number;
 }
+
+export type MixPicture = { type: 'first' } | { type: 'preset'; id: string } | { type: 'upload'; token: string };
 
 export class StudioService {
   readonly providers: MusicProvider[];
@@ -606,22 +609,52 @@ export class StudioService {
     }
   }
 
+  /** Tempo, intro and outro of each chosen song, so a mix can be planned (and shown) before it is built. */
+  async analyzeSongs(projectIds: string[]): Promise<(SongAnalysis & { projectId: string; title: string })[]> {
+    const out: (SongAnalysis & { projectId: string; title: string })[] = [];
+    for (const id of projectIds) {
+      const project = this.requireProject(id);
+      if (!project.chosenAudioAssetId) throw new Error(`"${project.title}" has no song yet.`);
+      const audio = this.requireAsset(id, project.chosenAudioAssetId, ['audio']);
+      const durationMs = Math.round((audio.asset.durationSec ?? 0) * 1000);
+      if (!durationMs) throw new Error(`"${project.title}" has an audio file with unknown length. Import it again.`);
+      const [tempo, peaks] = await Promise.all([detectBpm(this.ffmpegPath(), audio.storedPath).catch(() => null), audioPeaks(this.ffmpegPath(), audio.storedPath, 900)]);
+      const { introMs, outroMs } = introOutro(peaks, durationMs);
+      out.push({ projectId: id, title: project.title, durationMs, bpm: tempo?.bpm ?? null, bpmConfidence: tempo?.confidence ?? 0, introMs, outroMs });
+    }
+    return out;
+  }
+
+  /** Copies a picture chosen with a native dialog into a holding folder; createMix then takes it by token. */
+  async holdMixPicture(srcPath: string): Promise<{ token: string; name: string }> {
+    const ext = path.extname(srcPath).toLowerCase();
+    if (!EXT.image[ext]) throw new Error(`Unsupported picture type "${ext}".`);
+    const token = randomUUID();
+    const dir = path.join(this.dataDir, 'tmp', 'mix-pictures');
+    await fs.mkdir(dir, { recursive: true });
+    await fs.copyFile(srcPath, path.join(dir, `${token}${ext}`));
+    return { token, name: path.basename(srcPath) };
+  }
+
   /**
-   * Blends the chosen songs (each project's chosen audio, in the given order) with crossfades into a NEW project:
-   * one long audio file, every song's lyrics moved to where it starts, the first song's picture and look,
-   * and a tracklist. The new project is then styled and exported like any other.
+   * Blends the chosen songs (each project's chosen audio, in the given order) into a NEW project: one long audio file,
+   * every song's lyrics moved to where it starts, a picture, the first song's look, and a tracklist.
+   * With auto blend each blend is as long as the quiet outro and intro it joins; with match tempo each song is
+   * sped up or slowed down a little (pitch stays) to the song before it. Original songs are never changed.
    */
-  async createMix(title: string, projectIds: string[], crossfadeMs: number): Promise<{ project: Project; mix: MixInfo }> {
+  async createMix(title: string, projectIds: string[], opts: MixOptions & { picture: MixPicture }): Promise<{ project: Project; mix: MixInfo }> {
     if (projectIds.length < MIX_MIN_SONGS) throw new Error('Choose at least two songs.');
     if (projectIds.length > MIX_MAX_SONGS) throw new Error(`A mix can hold at most ${MIX_MAX_SONGS} songs.`);
-    const songs = projectIds.map((id) => {
+    const analysis = opts.auto || opts.matchTempo ? await this.analyzeSongs(projectIds) : null;
+    const songs = projectIds.map((id, i) => {
       const project = this.requireProject(id);
       if (!project.chosenAudioAssetId) throw new Error(`"${project.title}" has no song yet.`);
       const audio = this.requireAsset(id, project.chosenAudioAssetId, ['audio']);
       if (!audio.asset.durationSec) throw new Error(`"${project.title}" has an audio file with unknown length. Import it again.`);
-      return { project, audio, cues: this.store.listCues(id) };
+      const a: SongAnalysis = analysis?.[i] ?? { durationMs: Math.round(audio.asset.durationSec * 1000), bpm: null, bpmConfidence: 0, introMs: 0, outroMs: 0 };
+      return { project, audio, cues: this.store.listCues(id), a };
     });
-    const plan = planMix(songs.map((s) => Math.round(s.audio.asset.durationSec! * 1000)), crossfadeMs);
+    const plan = planWithAnalysis(songs.map((s) => s.a), opts);
     const first = songs[0]!.project;
     const mixTitle = title.trim() || `Mix of ${songs.length} songs`;
 
@@ -632,7 +665,7 @@ export class StudioService {
     try {
       const audioId = randomUUID();
       const storedPath = path.join(assets, `${audioId}.m4a`);
-      await mixAudio(this.ffmpegPath(), songs.map((s) => s.audio.storedPath), (plan.fadesMs[1] ?? 0) / 1000, storedPath);
+      await mixAudio(this.ffmpegPath(), { files: songs.map((s) => s.audio.storedPath), fadesSec: plan.fadesMs.map((f) => f / 1000), ratios: plan.ratios }, storedPath);
       const probe = await probeMedia(this.ffprobePath(), storedPath);
       if (!probe.audioCodec || !probe.durationSec) throw new Error('The blended audio could not be read back.');
       const st = await fs.stat(storedPath);
@@ -641,8 +674,17 @@ export class StudioService {
       this.store.addAsset({ id: audioId, projectId: mix.id, kind: 'audio', source: anyMock ? 'mock_provider' : 'local_import', providerId: anyMock ? 'mock' : null, originalName: `${mixTitle}.m4a`, storedPath, mime: 'audio/mp4', sizeBytes: st.size, durationSec: probe.durationSec, width: null, height: null });
       this.store.updateProject(mix.id, { chosenAudioAssetId: audioId });
 
-      // The first song's picture becomes the mix's background (it can be changed in Video Studio).
-      if (first.backgroundAssetId) {
+      // Picture: a preset, an uploaded file, or (default) the first song's picture. It can be changed later in Video Studio.
+      if (opts.picture.type === 'preset') {
+        await this.importPreset(mix.id, opts.picture.id as BackgroundPresetId);
+      } else if (opts.picture.type === 'upload') {
+        if (!/^[0-9a-f-]{36}$/.test(opts.picture.token)) throw new Error('Unknown picture.');
+        const holdDir = path.join(this.dataDir, 'tmp', 'mix-pictures');
+        const held = (await fs.readdir(holdDir).catch(() => [])).find((f) => f.startsWith(opts.picture.type === 'upload' ? opts.picture.token : ''));
+        if (!held) throw new Error('That picture is no longer available. Choose it again.');
+        await this.importAsset(mix.id, 'image', path.join(holdDir, held));
+        await fs.rm(path.join(holdDir, held), { force: true });
+      } else if (first.backgroundAssetId) {
         const bg = this.store.getAssetPath(first.backgroundAssetId);
         if (bg && bg.asset.kind === 'image') {
           const bgId = randomUUID();
@@ -653,7 +695,15 @@ export class StudioService {
         }
       }
 
-      const cues = mergeMixCues(songs.map((s, i) => ({ startMs: plan.tracks[i]!.startMs, endMs: plan.tracks[i]!.endMs, cues: s.cues })), () => randomUUID());
+      // A song played faster or slower has its lyric times scaled the same way.
+      const cues = mergeMixCues(
+        songs.map((s, i) => ({
+          startMs: plan.tracks[i]!.startMs,
+          endMs: plan.tracks[i]!.endMs,
+          cues: s.cues.map((c) => ({ ...c, startMs: Math.round(c.startMs / plan.ratios[i]!), endMs: Math.round(c.endMs / plan.ratios[i]!) })),
+        })),
+        () => randomUUID(),
+      );
       this.store.replaceCues(mix.id, cues);
       const lyrics = songs.map((s) => `[${s.project.title}]\n${s.project.lyrics.trim()}`).join('\n\n');
       const rights = songs.map((s) => `${s.project.title}: ${s.project.rightsNotes.trim() || 'no rights notes'}`).join('\n');
@@ -662,9 +712,9 @@ export class StudioService {
       const info: MixInfo = {
         title: mixTitle,
         fadesMs: plan.fadesMs,
-        auto: false,
+        auto: opts.auto,
         totalMs: plan.totalMs,
-        tracks: songs.map((s, i) => ({ projectId: s.project.id, title: s.project.title, artist: s.project.artist, startMs: plan.tracks[i]!.startMs, endMs: plan.tracks[i]!.endMs, durationMs: plan.tracks[i]!.durationMs, bpm: null, tempoRatio: 1 })),
+        tracks: songs.map((s, i) => ({ projectId: s.project.id, title: s.project.title, artist: s.project.artist, startMs: plan.tracks[i]!.startMs, endMs: plan.tracks[i]!.endMs, durationMs: plan.tracks[i]!.durationMs, bpm: s.a.bpm, tempoRatio: Math.round(plan.ratios[i]! * 10000) / 10000 })),
         tracklist: tracklist(songs.map((s, i) => ({ title: s.project.title, artist: s.project.artist, startMs: plan.tracks[i]!.startMs })), plan.totalMs),
         createdAt: new Date().toISOString(),
       };

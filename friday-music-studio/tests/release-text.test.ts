@@ -247,3 +247,25 @@ describe('auto blend rules', () => {
     expect(outroMs).toBeLessThanOrEqual(16_000);
   });
 });
+
+import { planWithAnalysis } from '../src/shared/mix';
+
+describe('full auto plan', () => {
+  const song = (durationMs: number, bpm: number | null, introMs: number, outroMs: number) => ({ durationMs, bpm, bpmConfidence: 10, introMs, outroMs });
+  it('slows the next song to the previous tempo and picks the blend from intro and outro', () => {
+    const p = planWithAnalysis([song(180_000, 124, 5000, 10_000), song(180_000, 120, 8000, 6000)], { crossfadeMs: 6000, auto: true, matchTempo: true });
+    expect(p.ratios[1]).toBeCloseTo(124 / 120, 5); // song 2 is sped up to 124
+    expect(p.tracks[1]!.durationMs).toBe(Math.round(180_000 / (124 / 120)));
+    expect(p.fadesMs[1]).toBe(Math.max(4000, Math.min(12_000, Math.round(Math.min(10_000, 8000 / (124 / 120)) * 0.9))));
+    expect(p.tracks[1]!.startMs).toBe(180_000 - p.fadesMs[1]!);
+  });
+  it('leaves tempo and blend alone when switched off, or when the songs are too different', () => {
+    const off = planWithAnalysis([song(100_000, 124, 0, 0), song(100_000, 120, 0, 0)], { crossfadeMs: 5000, auto: false, matchTempo: false });
+    expect(off.ratios).toEqual([1, 1]);
+    expect(off.fadesMs).toEqual([0, 5000]);
+    const far = planWithAnalysis([song(100_000, 124, 0, 0), song(100_000, 90, 0, 0)], { crossfadeMs: 5000, auto: false, matchTempo: true });
+    expect(far.ratios).toEqual([1, 1]);
+    const unsure = planWithAnalysis([song(100_000, 124, 0, 0), { ...song(100_000, 120, 0, 0), bpmConfidence: 0.9 }], { crossfadeMs: 5000, auto: false, matchTempo: true });
+    expect(unsure.ratios).toEqual([1, 1]);
+  });
+});

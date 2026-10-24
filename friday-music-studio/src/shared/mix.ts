@@ -82,6 +82,46 @@ export function tempoRatio(prevBpm: number | null, bpm: number | null, maxStretc
   return Math.abs(r - 1) <= maxStretch ? r : 1;
 }
 
+export interface SongAnalysis {
+  durationMs: number;
+  bpm: number | null;
+  /** Below about 1.5 the tempo is a guess and is not used. */
+  bpmConfidence: number;
+  introMs: number;
+  outroMs: number;
+}
+
+export interface MixOptions {
+  /** One blend length for every song change, used when auto is off. */
+  crossfadeMs: number;
+  /** Pick each blend from the quiet intro and outro of the two songs. */
+  auto: boolean;
+  /** Bring each song to the previous song's tempo (up to 6%). */
+  matchTempo: boolean;
+}
+
+export interface MixPlanFull extends MixPlan {
+  /** Playback speed of each song in the mix (1 = unchanged). */
+  ratios: number[];
+}
+
+const MIN_BPM_CONFIDENCE = 1.5;
+
+/** Everything the mix needs to know: speed of each song, blend before each song, and where each song starts. */
+export function planWithAnalysis(songs: SongAnalysis[], opts: MixOptions): MixPlanFull {
+  const ratios: number[] = [];
+  let prevBpm: number | null = null;
+  songs.forEach((s, i) => {
+    const bpm = s.bpm && s.bpmConfidence >= MIN_BPM_CONFIDENCE ? s.bpm : null;
+    const r = opts.matchTempo && i > 0 ? tempoRatio(prevBpm, bpm) : 1;
+    ratios.push(r);
+    prevBpm = bpm ? bpm * r : null;
+  });
+  const lengths = songs.map((s, i) => Math.round(s.durationMs / ratios[i]!));
+  const fades = songs.map((s, i) => (i === 0 ? 0 : opts.auto ? autoFadeMs(songs[i - 1]!.outroMs / ratios[i - 1]!, s.introMs / ratios[i]!) : opts.crossfadeMs));
+  return { ...planMix(lengths, fades), ratios };
+}
+
 /** Lyric cues of every song, moved to where that song starts in the mix, with no cue overlapping the next. */
 export function mergeMixCues(songs: { startMs: number; endMs: number; cues: LyricCue[] }[], makeId: () => string): LyricCue[] {
   const out: LyricCue[] = [];
