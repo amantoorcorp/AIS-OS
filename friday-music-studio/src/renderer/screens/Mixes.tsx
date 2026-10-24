@@ -62,7 +62,7 @@ export function Mixes({ open }: ScreenProps) {
   const available = songs.filter((s) => !chosen.includes(s.project.id));
   const plan = useMemo(() => planMix(picked.map((s) => s.durationMs), crossfade * 1000), [picked, crossfade]);
   const list = useMemo(() => tracklist(picked.map((s, i) => ({ title: s.project.title, artist: s.project.artist, startMs: plan.tracks[i]!.startMs })), plan.totalMs), [picked, plan]);
-  const effectiveCrossfade = clampCrossfade(crossfade * 1000, picked.map((s) => s.durationMs));
+  const effectiveCrossfade = picked.length ? clampCrossfade(crossfade * 1000, picked.map((s) => s.durationMs)) : crossfade * 1000;
   const move = (i: number, d: -1 | 1) =>
     setChosen((c) => {
       const j = i + d;
