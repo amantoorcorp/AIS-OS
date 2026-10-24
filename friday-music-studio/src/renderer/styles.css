@@ -184,3 +184,8 @@ input.time.bad { border-color: var(--bad); }
 .preview.draggable:active { cursor: grabbing; }
 .short-video { max-height: 520px; margin-top: 10px; border-radius: 8px; }
 button.active { outline: 2px solid var(--accent); }
+
+.suggestions { margin: 12px 0; }
+.suggest { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); min-width: 210px; max-width: 260px; }
+.suggest.active { border-color: var(--accent); }
+.suggest small { line-height: 1.3; }

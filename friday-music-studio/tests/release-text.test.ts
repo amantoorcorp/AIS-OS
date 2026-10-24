@@ -99,3 +99,52 @@ describe('short helpers', () => {
     expect(clampShort({ startMs: 0, lengthMs: 1000, focusX: 0.5, focusY: 0.5, zoom: 1, fit: 'fill' }, 600_000).lengthMs).toBe(5000);
   });
 });
+
+import { snapWindow, suggestShortParts } from '../src/shared/shorts';
+
+describe('best parts of a song', () => {
+  // A 120 s song: lines every 3 s. Chorus lines repeat at 30-54 s and 78-102 s; the second is louder.
+  const lines: string[] = [];
+  const cues = Array.from({ length: 40 }, (_, k) => {
+    const t = k * 3000;
+    const chorus = (t >= 30_000 && t < 54_000) || (t >= 78_000 && t < 102_000);
+    const idx = t >= 78_000 ? (t - 78_000) / 3000 : (t - 30_000) / 3000;
+    lines.push(chorus ? `chorus line ${idx}` : `other line ${k}`);
+    return { id: String(k), startMs: t, endMs: t + 2800, text: chorus ? `chorus line ${idx}` : `other line ${k}` };
+  });
+  const peaks = Array.from({ length: 600 }, (_, i) => {
+    const t = i * 200;
+    if (t >= 78_000 && t < 102_000) return 0.9;
+    if (t >= 30_000 && t < 54_000) return 0.6;
+    return 0.4;
+  });
+
+  it('puts the loudest repeat of the chorus first, starting at a line and ending at a line', () => {
+    const s = suggestShortParts({ cues, peaks, durationMs: 120_000 });
+    expect(s[0]!.label).toBe('Chorus');
+    expect(s[0]!.startMs).toBe(78_000);
+    expect((s[0]!.startMs + s[0]!.lengthMs) % 3000).toBe(2800); // ends where a line ends
+    expect(s[0]!.lengthMs).toBeGreaterThanOrEqual(5000);
+    expect(s[0]!.lengthMs).toBeLessThanOrEqual(180_000);
+  });
+
+  it('never offers two parts that mostly overlap, and keeps every part inside the song', () => {
+    const s = suggestShortParts({ cues, peaks, durationMs: 120_000 });
+    expect(s.length).toBeGreaterThanOrEqual(2);
+    for (const a of s) {
+      expect(a.startMs).toBeGreaterThanOrEqual(0);
+      expect(a.startMs + a.lengthMs).toBeLessThanOrEqual(120_000);
+      for (const b of s) {
+        if (a === b) continue;
+        const ov = Math.min(a.startMs + a.lengthMs, b.startMs + b.lengthMs) - Math.max(a.startMs, b.startMs);
+        expect(ov).toBeLessThanOrEqual(Math.min(a.lengthMs, b.lengthMs) * 0.5);
+      }
+    }
+  });
+
+  it('snaps to lines only when one is close, and returns nothing for a song with no waveform', () => {
+    expect(snapWindow(cues, 77_000, 30_000)).toEqual({ startMs: 78_000, lengthMs: 29_800 });
+    expect(snapWindow([], 1234, 30_000)).toEqual({ startMs: 1234, lengthMs: 30_000 });
+    expect(suggestShortParts({ cues, peaks: [], durationMs: 120_000 })).toEqual([]);
+  });
+});

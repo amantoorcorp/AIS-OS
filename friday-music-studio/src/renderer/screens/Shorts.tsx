@@ -4,7 +4,7 @@ import type { ScreenProps } from '../App';
 import { LyricPreview } from '../components/LyricPreview';
 import { Badge, ErrorBanner, fmtBytes, fmtDate, ProjectPicker, Section, useAction } from '../components/common';
 import { activeCue, formatMs } from '../../shared/cues';
-import { clampShort, SHORT_MAX_MS, SHORT_MIN_MS, suggestHookStart } from '../../shared/shorts';
+import { clampShort, SHORT_MAX_MS, SHORT_MIN_MS, suggestHookStart, suggestShortParts } from '../../shared/shorts';
 import type { ProjectDetail, RenderProgressEvent } from '../../shared/types';
 
 const mmss = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms % 60000) / 1000)).padStart(2, '0')}`;
@@ -226,6 +226,26 @@ export function Shorts({ projectId, setProjectId, open }: ScreenProps) {
   };
 
   const marks = useMemo(() => cues.map((c) => c.startMs), [cues]);
+  // Best parts of the song, found from the lyrics and the loudness. Recomputed for the length you have chosen.
+  const suggestions = useMemo(
+    () => (peaks && durationMs ? suggestShortParts({ cues, peaks, durationMs, lengthMs: range.lengthMs }) : []),
+    [cues, peaks, durationMs, range.lengthMs],
+  );
+  const picked = useRef<string | null>(null);
+  useEffect(() => {
+    // The first time the waveform arrives for a song, start on the best part instead of an empty guess.
+    if (!peaks || !audio || picked.current === audio.id) return;
+    picked.current = audio.id;
+    const best = suggestShortParts({ cues, peaks, durationMs, lengthMs: 30_000 })[0];
+    if (best) setRange({ startMs: best.startMs, lengthMs: best.lengthMs });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [peaks, audio?.id]);
+  const useAndListen = (r: Range) => {
+    setRange(r);
+    seek(r.startMs);
+    void audioRef.current?.play();
+    setPlaying(true);
+  };
   const current = activeCue(cues, nowMs);
   const rendering = render?.status === 'running';
   const shorts = (detail?.renders ?? []).filter((r) => (r.probe?.height ?? 0) > (r.probe?.width ?? 0));
@@ -269,7 +289,7 @@ export function Shorts({ projectId, setProjectId, open }: ScreenProps) {
                   })
                 }
               >
-                Choose a picture…
+                Upload a picture…
               </button>
             </div>
           </Section>
@@ -298,6 +318,27 @@ export function Shorts({ projectId, setProjectId, open }: ScreenProps) {
                 <button key={s} className={Math.round(range.lengthMs / 1000) === s ? 'active' : ''} onClick={() => setLength(s)}>{s}s</button>
               ))}
             </div>
+            {suggestions.length > 0 && (
+              <div className="suggestions">
+                <b>Best parts I found for you</b>
+                <div className="row wrap">
+                  {suggestions.map((s) => {
+                    const active = Math.abs(s.startMs - range.startMs) < 500 && Math.abs(s.lengthMs - range.lengthMs) < 500;
+                    return (
+                      <div key={s.label + s.startMs} className={`suggest ${active ? 'active' : ''}`}>
+                        <b>{s.label}</b>
+                        <span>{mmss(s.startMs)} to {mmss(s.startMs + s.lengthMs)} ({Math.round(s.lengthMs / 1000)}s)</span>
+                        <small className="muted">{s.why}</small>
+                        <div className="row">
+                          <button className="small" onClick={() => setRange({ startMs: s.startMs, lengthMs: s.lengthMs })}>Use this</button>
+                          <button className="small" onClick={() => useAndListen({ startMs: s.startMs, lengthMs: s.lengthMs })}>Use and listen</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             <p className="muted small-text">Drag the left or right edge to change the start or end. Drag the middle to slide the whole part. Click the waveform to move the white line and listen from there. Thin lines are where lyrics start.</p>
           </Section>
 

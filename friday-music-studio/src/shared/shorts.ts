@@ -57,22 +57,24 @@ const norm = (t: string) => splitCueLines(t).join(' ').toLowerCase().replace(/[^
  * The chorus: the block of consecutive lines that repeats, preferring long blocks that repeat often.
  * Repeats may differ slightly in punctuation. Returns the index of the block's first cue, or null.
  */
-function repeatedBlock(timed: LyricCue[]): { index: number; len: number; count: number } | null {
+function repeatedBlock(timed: LyricCue[]): { index: number; len: number; count: number; starts: number[] } | null {
   const t = timed.map((c) => norm(c.text));
   const n = t.length;
-  let best: { index: number; len: number; count: number; score: number } | null = null;
+  let best: { index: number; len: number; count: number; score: number; starts: number[] } | null = null;
   for (let len = Math.min(8, Math.floor(n / 2)); len >= 2; len--) {
     for (let i = 0; i + len <= n; i++) {
       const key = t.slice(i, i + len).join('|');
       let count = 1;
+      const starts = [i];
       for (let j = i + len; j + len <= n; ) {
         if (t.slice(j, j + len).join('|') === key) {
           count++;
+          starts.push(j);
           j += len;
         } else j++;
       }
       const score = len * count;
-      if (count >= 2 && (!best || score > best.score)) best = { index: i, len, count, score };
+      if (count >= 2 && (!best || score > best.score)) best = { index: i, len, count, score, starts };
     }
   }
   return best;
@@ -114,4 +116,95 @@ export function suggestHookStart(cues: LyricCue[], leadMs = 1500): number {
   let best: { n: number; first: number } | null = null;
   for (const e of counts.values()) if (e.n >= 2 && (!best || e.n > best.n || (e.n === best.n && e.first < best.first))) best = e;
   return Math.max(0, (best ?? { first: timed[0]!.startMs }).first - leadMs);
+}
+
+
+export interface PartSuggestion {
+  label: string;
+  why: string;
+  startMs: number;
+  lengthMs: number;
+}
+
+const mean = (peaks: number[], from: number, to: number) => {
+  const n = peaks.length;
+  const a = Math.max(0, Math.min(n - 1, from));
+  const b = Math.max(a + 1, Math.min(n, to));
+  let sum = 0;
+  for (let i = a; i < b; i++) sum += peaks[i]!;
+  return sum / (b - a);
+};
+
+/**
+ * Moves a window so it starts at a line (not mid-word) and ends at the end of a line, when a cue boundary is
+ * close. Keeps the length inside the Shorts limits.
+ */
+export function snapWindow(cues: LyricCue[], startMs: number, lengthMs: number, reachMs = 3000): { startMs: number; lengthMs: number } {
+  const timed = cues.filter((c) => c.endMs > c.startMs);
+  const nearest = (values: number[], target: number) => values.reduce<number | null>((best, v) => (Math.abs(v - target) <= reachMs && (best === null || Math.abs(v - target) < Math.abs(best - target)) ? v : best), null);
+  const start = nearest(timed.map((c) => c.startMs), startMs) ?? startMs;
+  const end = nearest(timed.map((c) => c.endMs), startMs + lengthMs) ?? startMs + lengthMs;
+  const length = Math.min(SHORT_MAX_MS, Math.max(SHORT_MIN_MS, end - start));
+  return { startMs: Math.max(0, start), lengthMs: length };
+}
+
+/**
+ * Picks the best parts of a song for a Short, best first, from the lyrics and the loudness:
+ * - the chorus, using the repeat that is loudest (usually the last, fullest one),
+ * - the loudest stretch of the song,
+ * - the opening, where the first line starts.
+ * Parts that overlap an earlier pick by more than half are dropped. Starts and ends are snapped to lines.
+ */
+export function suggestShortParts(opts: { cues: LyricCue[]; peaks: number[]; durationMs: number; lengthMs?: number; max?: number }): PartSuggestion[] {
+  const { cues, peaks, durationMs } = opts;
+  const length = Math.min(SHORT_MAX_MS, Math.max(SHORT_MIN_MS, opts.lengthMs ?? SHORT_DEFAULT_MS));
+  if (durationMs < SHORT_MIN_MS || peaks.length === 0) return [];
+  const per = durationMs / peaks.length; // ms per peak
+  const energy = (startMs: number, lenMs: number) => mean(peaks, Math.floor(startMs / per), Math.ceil((startMs + lenMs) / per));
+  const timed = [...cues].filter((c) => c.endMs > c.startMs && norm(c.text)).sort((a, b) => a.startMs - b.startMs);
+  const out: PartSuggestion[] = [];
+  const add = (label: string, why: string, rawStart: number) => {
+    const s = clampShort({ startMs: rawStart, lengthMs: length, focusX: 0.5, focusY: 0.5, zoom: 1, fit: 'fill' }, durationMs);
+    const w = snapWindow(timed, s.startMs, s.lengthMs);
+    const fit = clampShort({ startMs: w.startMs, lengthMs: w.lengthMs, focusX: 0.5, focusY: 0.5, zoom: 1, fit: 'fill' }, durationMs);
+    const overlaps = out.some((o) => {
+      const ov = Math.min(o.startMs + o.lengthMs, fit.startMs + fit.lengthMs) - Math.max(o.startMs, fit.startMs);
+      return ov > Math.min(o.lengthMs, fit.lengthMs) * 0.5;
+    });
+    if (!overlaps) out.push({ label, why, startMs: fit.startMs, lengthMs: fit.lengthMs });
+  };
+
+  const block = repeatedBlock(timed);
+  if (block) {
+    const starts = block.starts.map((i) => timed[i]!.startMs);
+    const best = starts.reduce((a, b) => (energy(b, length) > energy(a, length) ? b : a));
+    add('Chorus', `The lines this song repeats ${block.count} times. This is the fullest repeat.`, best - 1000);
+  }
+  // Loudest stretch: slide a window across the song, one second at a time.
+  let loud = 0;
+  let loudAt = -1;
+  for (let t = 0; t + length <= durationMs; t += 1000) {
+    const e = energy(t, length);
+    if (e > loud) {
+      loud = e;
+      loudAt = t;
+    }
+  }
+  if (loudAt >= 0) add('Loudest part', 'The most energetic stretch of the song.', loudAt);
+  if (timed[0]) add('Opening', 'Starts at the first line, so people hear the voice straight away.', timed[0].startMs - 500);
+  // A quieter, emotional option: the bridge, found as the lowest-energy long stretch that still has lyrics.
+  if (timed.length >= 6) {
+    let calm = Infinity;
+    let calmAt = -1;
+    for (const c of timed) {
+      if (c.startMs + length > durationMs) continue;
+      const e = energy(c.startMs, length);
+      if (e < calm) {
+        calm = e;
+        calmAt = c.startMs;
+      }
+    }
+    if (calmAt >= 0) add('Calm moment', 'The softest part that still has words.', calmAt);
+  }
+  return out.slice(0, opts.max ?? 4);
 }
